@@ -106,12 +106,15 @@ function nearestNes(r, g, b) {
 }
 
 function process() {
-  W = Math.min(128, Math.ceil(img.width / 8) * 8);
-  H = Math.min(128, Math.ceil(img.height / 8) * 8);
+  // 128px を超える画像は縮小 (アスペクト維持, 最近傍)
+  const scale = Math.min(1, 128 / Math.max(img.width, img.height));
+  W = Math.max(8, Math.ceil(img.width * scale / 8) * 8);
+  H = Math.max(8, Math.ceil(img.height * scale / 8) * 8);
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const x = c.getContext('2d');
-  x.drawImage(img, 0, 0);
+  x.imageSmoothingEnabled = false;
+  x.drawImage(img, 0, 0, W, H);
   const d = x.getImageData(0, 0, W, H).data;
   // 色の頻度集計 (アルファ<128 は透明扱い)
   const freq = new Map();
