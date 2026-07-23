@@ -77,6 +77,8 @@ update_player:
     sta vel_y_lo
     lda #JUMP_VEL_HI
     sta vel_y_hi
+    lda player_y
+    sta jump_origin_y   ; SMB: 跳んだ高さの判定用に開始位置を記録
 
 @airborne:
     ; 重力選択: 上昇中かつ A 押下中だけ弱い重力 → 押下時間でジャンプ高が変わる
@@ -85,7 +87,13 @@ update_player:
     bpl @apply_grav     ; 下降中 (速度 >= 0) は常に強い重力
     lda buttons
     and #BTN_A
-    beq @apply_grav     ; A を離したら強い重力
+    bne @weak_grav      ; A 押下中は弱い重力
+    lda jump_origin_y   ; SMB DiffToHaltJump: 跳び始め (1px 未満上昇) は
+    sec                 ; A を離していても弱い重力のまま
+    sbc player_y
+    cmp #1
+    bcs @apply_grav
+@weak_grav:
     ldy #GRAV_HOLD
 @apply_grav:
     tya                 ; 速度 += 重力

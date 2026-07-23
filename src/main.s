@@ -39,6 +39,11 @@ col_pending:  .res 1    ; NMI で転送する列番号 ($FF=なし)
 col_ppu_hi:   .res 1    ; 転送先 PPU アドレス
 col_ppu_lo:   .res 1
 tmp:          .res 1
+jump_origin_y: .res 1   ; ジャンプ開始時の Y (SMB DiffToHaltJump 用)
+arrow_flag:   .res 2    ; 矢: 0=なし 1=右 2=左 (最大2発)
+arrow_xlo:    .res 2    ; 矢のワールド X (16bit)
+arrow_xhi:    .res 2
+arrow_y:      .res 2
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -94,8 +99,10 @@ reset:
 main_loop:
     jsr read_controller
     jsr update_player
+    jsr update_arrows
     jsr update_camera
     jsr draw_player
+    jsr draw_arrows
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
@@ -146,6 +153,7 @@ irq:
 .include "controller.s"
 .include "player.s"
 .include "level.s"
+.include "arrow.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq
