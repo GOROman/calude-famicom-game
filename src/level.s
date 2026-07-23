@@ -127,10 +127,19 @@ write_column:
     sta col_pending
     rts
 
-; ---- 列レンダラ: A = 列番号 → col_buf (30タイル) ----
-; フィーチャ: 0=平地 1=柱(高2) 2=柱(高4) 3=浮きブロック(低) 4=浮きブロック(高)
+; ---- 列レンダラ: A = タイル列番号 → col_buf (30タイル) ----
+; ブロックはスーパーマリオと同じ 16x16 (2x2タイル)。level_map は 16px 単位の
+; メタ列 (64個)。タイル列の偶奇でブロックの左半分/右半分を描き分ける。
+; フィーチャ: 0=平地 1=ブロック(地上1個) 2=ブロック(縦2個) 3=浮き(低) 4=浮き(高)
 render_column:
+    tay
+    and #1
+    sta tmp             ; 0=左半分, 1=右半分
+    tya
+    lsr
     tax
+    lda level_map,x     ; メタ列のフィーチャ
+    sta tmp2
     lda #0
     ldy #29
 :   sta col_buf,y
@@ -143,59 +152,67 @@ render_column:
     sta col_buf+27
     sta col_buf+28
     sta col_buf+29
-    lda level_map,x
+    lda tmp2
     beq @done
     cmp #1
     bne :+
-    lda #TILE_BLOCK
-    sta col_buf+23
-    sta col_buf+24
-    rts
+    ldy #23             ; 地上に1個 (行23-24)
+    jmp put_block
 :   cmp #2
     bne :+
-    lda #TILE_BLOCK
-    sta col_buf+21
-    sta col_buf+22
-    sta col_buf+23
-    sta col_buf+24
-    rts
+    ldy #21             ; 縦に2個 (行21-24)
+    jsr put_block
+    ldy #23
+    jmp put_block
 :   cmp #3
     bne :+
-    lda #TILE_BLOCK
-    sta col_buf+19
-    rts
-:   lda #TILE_BLOCK
-    sta col_buf+16
+    ldy #18             ; 浮きブロック低 (行18-19)
+    jmp put_block
+:   ldy #15             ; 浮きブロック高 (行15-16)
+    jmp put_block
 @done:
     rts
 
+; ---- 16x16 ブロックの半列を書く: Y = 上の行, tmp = 左右半分 ----
+put_block:
+    ldx tmp
+    lda block16_top,x
+    sta col_buf,y
+    lda block16_bot,x
+    iny
+    sta col_buf,y
+    rts
+
 .segment "RODATA"
-; 128列分のフィーチャマップ
+block16_top: .byte $50, $51             ; 16x16 ブロックの上段 (左, 右)
+block16_bot: .byte $52, $53             ; 下段 (左, 右)
+
+; 64メタ列 (16px単位) 分のフィーチャマップ
 level_map:
-    .res 16, 0                          ; 0-15: 平地
-    .byte 3,3,3                         ; 16-18: 浮きブロック
-    .res 5, 0                           ; 19-23
-    .byte 1                             ; 24: 柱
-    .res 3, 0                           ; 25-27
-    .byte 1                             ; 28: 柱
+    .res 8, 0                           ; 0-7: 平地
+    .byte 3,3                           ; 8-9: 浮きブロック
+    .res 2, 0                           ; 10-11
+    .byte 1                             ; 12: ブロック
+    .byte 0
+    .byte 1                             ; 14: ブロック
+    .byte 0
+    .byte 4,4                           ; 16-17: 高い浮きブロック
+    .res 2, 0                           ; 18-19
+    .byte 3,4,3                         ; 20-22: 山なり
+    .res 3, 0                           ; 23-25
+    .byte 2                             ; 26: 縦2個
+    .byte 0
+    .byte 2                             ; 28: 縦2個
     .res 3, 0                           ; 29-31
-    .byte 4,4,4,4                       ; 32-35: 高い浮きブロック
+    .byte 3,4,4,3                       ; 32-35: アーチ
     .res 4, 0                           ; 36-39
-    .byte 3,3,4,3,3                     ; 40-44: 山なりブロック
-    .res 7, 0                           ; 45-51
-    .byte 2                             ; 52: 高柱
-    .res 3, 0                           ; 53-55
-    .byte 2                             ; 56: 高柱
-    .res 7, 0                           ; 57-63
-    .byte 3,4,4,3                       ; 64-67: アーチ
-    .res 12, 0                          ; 68-79
-    .byte 1,1,2,2                       ; 80-83: 階段
-    .res 4, 0                           ; 84-87
-    .byte 3,3,3                         ; 88-90
-    .res 5, 0                           ; 91-95
-    .byte 1,2,2,1                       ; 96-99: 台形
-    .res 8, 0                           ; 100-107
-    .byte 3,3,3,3                       ; 108-111
-    .res 8, 0                           ; 112-119
-    .byte 2,2                           ; 120-121: 高柱
-    .res 6, 0                           ; 122-127: ゴール前
+    .byte 1,1,2,2                       ; 40-43: 階段
+    .res 2, 0                           ; 44-45
+    .byte 3,3                           ; 46-47
+    .byte 0
+    .byte 1,2,2,1                       ; 49-52: 台形
+    .byte 0
+    .byte 3,3                           ; 54-55
+    .res 4, 0                           ; 56-59
+    .byte 2,2                           ; 60-61: 高柱
+    .res 2, 0                           ; 62-63: ゴール前

@@ -58,3 +58,18 @@
     .res 16, $00
 ; tile $10-$4F: 隠しメッセージ
 .include "easteregg.s"
+
+; ---- 16x16 メタタイル (scratchpad の brick16.py で生成) ----
+; SMB 風の 16x16 ブロック (輪郭+左上ハイライト+レンガ目地)
+; tile $50: block16 TL
+    .byte $FF,$9F,$BF,$FF,$FF,$FF,$FF,$FF
+    .byte $00,$7F,$7F,$7F,$40,$7B,$7B,$7B
+; tile $51: block16 TR
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $00,$DE,$DE,$DE,$02,$FE,$FE,$FE
+; tile $52: block16 BL
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $40,$7F,$7F,$7F,$40,$7B,$7B,$00
+; tile $53: block16 BR
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $02,$DE,$DE,$DE,$02,$FE,$FE,$00
