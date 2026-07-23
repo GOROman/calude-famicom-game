@@ -6,6 +6,8 @@
 
 動作確認には自作 WASM エミュレータ [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu) を使用。
 
+![スクリーンショット: ジャンプ中のカリュード](docs/screenshot.png)
+
 ## 必要環境
 
 - macOS (他OSでも cc65 と make があれば可)
