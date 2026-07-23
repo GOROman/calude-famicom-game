@@ -3,7 +3,7 @@ BUILD   := build
 EMU_WEB := $(HOME)/work/github.com/GOROman/cluade-famicom-emu/web
 PORT    := 8000
 
-SRC := $(wildcard src/*.s) assets/chr.s
+SRC := $(wildcard src/*.s) $(wildcard assets/*.s)
 
 .PHONY: all run clean
 
