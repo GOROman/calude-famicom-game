@@ -1,17 +1,18 @@
 ; CHR-ROM パターンデータ (残り領域はリンカが $00 で埋める)
-; プレイヤーは 16x16 (8x8 タイル4枚構成)
+; 主人公: 狩人 Calude (16x16 = 8x8 タイル4枚)。フード+弓持ち、右向き
+; ドット絵は scratchpad の hunter.py で生成
 
 ; tile $00: blank
     .res 16, $00
-; tile $01: player top-left
-    .byte $3F,$40,$98,$98,$80,$87,$40,$3F
-    .byte $00,$3F,$7F,$7F,$7F,$7F,$3F,$00
-; tile $02: player top-right
-    .byte $FC,$02,$19,$19,$01,$E1,$02,$FC
-    .byte $00,$FC,$FE,$FE,$FE,$FE,$FC,$00
-; tile $03: player bottom-left
-    .byte $13,$10,$16,$10,$19,$09,$09,$0F
-    .byte $0C,$0F,$0F,$0F,$06,$06,$06,$00
-; tile $04: player bottom-right
-    .byte $C8,$08,$68,$08,$98,$90,$90,$78
-    .byte $30,$F0,$F0,$F0,$60,$60,$60,$00
+; tile $01: hunter top-left
+    .byte $07,$08,$10,$17,$17,$17,$08,$10
+    .byte $00,$07,$0F,$0F,$0D,$0F,$07,$0F
+; tile $02: hunter top-right
+    .byte $E0,$10,$08,$EA,$EB,$EB,$13,$0F
+    .byte $00,$E0,$F0,$F0,$B2,$F2,$E2,$F6
+; tile $03: hunter bottom-left
+    .byte $20,$20,$10,$0C,$09,$09,$09,$1E
+    .byte $1F,$1F,$0F,$03,$06,$06,$06,$00
+; tile $04: hunter bottom-right
+    .byte $07,$07,$0B,$33,$93,$92,$90,$F0
+    .byte $FA,$FA,$F2,$C2,$62,$60,$60,$00
