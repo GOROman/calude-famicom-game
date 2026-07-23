@@ -54,6 +54,139 @@ start_stage:
     sta PPUMASK
     rts
 
+; ---- タイトル画面: 黒背景に「狩人行動」ロゴと PUSH START ----
+show_title:
+    lda #0
+    sta PPUCTRL
+    sta PPUMASK
+    sta nmi_ready
+    sta scroll_lo
+    sta scroll_hi
+    jsr ppu_init        ; ネームテーブルクリア
+    ; タイトル用 BG パレット (黒背景, 赤ロゴ, 白文字)
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$00
+    sta PPUADDR
+    ldx #0
+:   lda title_palette,x
+    sta PPUDATA
+    inx
+    cpx #16
+    bne :-
+    ; ロゴ「狩人行動」 (タイル $C0-$CF, 2x2 ずつ) を行8-9 中央へ
+    lda #$21
+    ldx #$0C            ; $210C = 行8 列12
+    jsr set_title_ptr_logo_top
+    jsr write_bg_row
+    lda #$21
+    ldx #$2C            ; 行9
+    jsr set_title_ptr_logo_bot
+    jsr write_bg_row
+    ; サブタイトルとコピーライト
+    lda #$21
+    ldx #$8A            ; 行12 列10
+    jsr set_title_ptr_sub
+    jsr write_bg_row
+    lda #$23
+    ldx #$48            ; 行26 列8
+    jsr set_title_ptr_copy
+    jsr write_bg_row
+    ; スプライト全消し
+    ldx #0
+    lda #$FF
+:   sta OAM_BUF,x
+    inx
+    bne :-
+    lda #4
+    sta game_state
+    lda #%10000000      ; NMI 再開
+    sta PPUCTRL
+    lda #%00011110
+    sta PPUMASK
+    rts
+
+set_title_ptr_logo_top:
+    pha
+    lda #<title_logo_top
+    sta text_ptr
+    lda #>title_logo_top
+    sta text_ptr+1
+    pla
+    rts
+set_title_ptr_logo_bot:
+    pha
+    lda #<title_logo_bot
+    sta text_ptr
+    lda #>title_logo_bot
+    sta text_ptr+1
+    pla
+    rts
+set_title_ptr_sub:
+    pha
+    lda #<title_sub
+    sta text_ptr
+    lda #>title_sub
+    sta text_ptr+1
+    pla
+    rts
+set_title_ptr_copy:
+    pha
+    lda #<title_copy
+    sta text_ptr
+    lda #>title_copy
+    sta text_ptr+1
+    pla
+    rts
+
+; ---- BG に 0 終端のタイル列を書く: A=PPUアドレス上位, X=下位 ----
+write_bg_row:
+    bit PPUSTATUS
+    sta PPUADDR
+    stx PPUADDR
+    ldy #0
+:   lda (text_ptr),y
+    beq @end
+    sta PPUDATA
+    iny
+    bne :-
+@end:
+    rts
+
+; ---- タイトルの更新: PUSH START 点滅 + START でゲーム開始 ----
+update_title:
+    inc frame_count
+    lda frame_count
+    and #32             ; 32フレーム周期で点滅
+    bne @hide_push
+    lda #<title_push_txt
+    sta text_ptr
+    lda #>title_push_txt
+    sta text_ptr+1
+    jsr draw_text
+    jmp @check_start
+@hide_push:
+    ldx #0
+    lda #$FF
+:   sta OAM_BUF+TEXT_OAM,x
+    inx
+    inx
+    inx
+    inx
+    cpx #48
+    bcc :-
+@check_start:
+    lda buttons
+    and #BTN_START
+    beq @done
+    lda prev_buttons
+    and #BTN_START
+    bne @done
+    jmp start_stage     ; ゲーム開始!
+@done:
+    rts
+
 ; ---- 一番右 (WORLD_X_MAX) まで行ったらステージクリア! ----
 check_clear:
     lda world_x_hi
@@ -233,5 +366,23 @@ clear_txt:                              ; STAGE CLEAR! (2行組)
 gameover_txt:                           ; GAMEOVER (1行, 8スプライト制限内)
     .byte 100,$A7,96, 100,$A1,104, 100,$AD,112, 100,$A5,120
     .byte 100,$AF,128, 100,$B6,136, 100,$A5,144, 100,$B2,152
+    .byte 0
+; ---- タイトル画面のデータ ----
+title_palette:                          ; 黒背景, 色2=赤 (ロゴ), 色3=白 (文字)
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+title_logo_top:                         ; 狩人行動 (上段タイル)
+    .byte $C0,$C1,$C4,$C5,$C8,$C9,$CC,$CD,0
+title_logo_bot:                         ; 下段
+    .byte $C2,$C3,$C6,$C7,$CA,$CB,$CE,$CF,0
+title_sub:                              ; CALUDE KODO
+    .byte $A3,$A1,$AC,$B5,$A4,$A5,$80,$AB,$AF,$A4,$AF,0
+title_copy:                             ; (C)2026 GOROMAN
+    .byte $88,$A3,$89,$92,$90,$92,$96,$80,$A7,$AF,$B2,$AF,$AD,$A1,$AE,0
+title_push_txt:                         ; PUSH / START (スプライト点滅)
+    .byte 150,$B0,112, 150,$B5,120, 150,$B3,128, 150,$A8,136
+    .byte 164,$B3,108, 164,$B4,116, 164,$A1,124, 164,$B2,132, 164,$B4,140
     .byte 0
 .segment "CODE"

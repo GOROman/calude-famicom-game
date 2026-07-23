@@ -137,12 +137,17 @@ reset:
     sta lives
     lda #0
     sta current_stage
-    jsr start_stage     ; パレット/NT/レベル/プレイヤー/敵の初期化と描画再開
+    jsr show_title      ; まずはタイトル画面 (START でゲーム開始)
 
 main_loop:
     jsr read_controller
     lda game_state
     beq @playing
+    cmp #4
+    bne @in_state
+    jsr update_title    ; タイトル画面 (START 待ち + PUSH START 点滅)
+    jmp @finish
+@in_state:
     jsr update_state    ; クリア/死亡/ゲームオーバー演出中
     jmp @draw
 @playing:
@@ -158,6 +163,7 @@ main_loop:
     jsr draw_enemies
     jsr draw_items
     jsr draw_hud
+@finish:
     jsr update_sound
     lda #1
     sta nmi_ready
