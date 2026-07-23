@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PNG → CGROM 変換ツール (狩人行動)</title>
+<style>
+  :root { --red:#8b1a1a; --cream:#f5e9d0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#1a1a1a; color:var(--cream); font-family:'Hiragino Kaku Gothic ProN', ui-sans-serif, sans-serif; }
+  header { background:var(--red); padding:10px 16px; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { font-size:12px; opacity:.85; }
+  main { padding:16px; display:flex; flex-wrap:wrap; gap:16px; }
+  .panel { background:#242424; border:2px solid #444; border-radius:8px; padding:12px; }
+  #drop {
+    width:340px; min-height:120px; border:3px dashed #666; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    color:#999; cursor:pointer; padding:12px;
+  }
+  #drop.over { border-color:#ffd700; color:#ffd700; }
+  canvas { image-rendering:pixelated; background:#000; display:block; }
+  #preview { border:2px solid #555; margin-top:8px; }
+  .swatches { display:flex; gap:6px; margin:8px 0; }
+  .sw { width:44px; height:44px; border:2px solid #666; border-radius:6px; cursor:pointer;
+        display:flex; align-items:flex-end; justify-content:center; font-size:10px;
+        font-family:ui-monospace,monospace; color:#fff; text-shadow:0 0 3px #000; }
+  .sw.bg { border-color:#ffd700; }
+  textarea { width:100%; height:220px; background:#111; color:#9fdf9f; border:1px solid #444;
+             border-radius:6px; font-family:ui-monospace,Menlo,monospace; font-size:11px; padding:8px; }
+  .btn { background:var(--red); border:none; color:var(--cream); padding:8px 14px; border-radius:6px;
+         cursor:pointer; font-size:13px; font-weight:bold; box-shadow:0 2px 0 #5d0f0f; margin-right:8px; }
+  .btn:active { transform:translateY(2px); box-shadow:none; }
+  .note { font-size:12px; color:#aaa; margin-top:6px; }
+  a { color:#7fc4ff; }
+  h2 { font-size:14px; margin:0 0 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PNG → CGROM 変換ツール</h1>
+  <span class="sub">画像を NES の CHR データ (.byte / .chr) とパレットに変換 — <a href="../../editor/" style="color:#ffd0a0">ステージエディタ</a> / <a href="https://github.com/GOROman/calude-famicom-game" style="color:#ffd0a0">GitHub</a></span>
+</header>
+<main>
+  <div class="panel">
+    <h2>1. 画像を読み込む</h2>
+    <div id="drop">ここに PNG をドロップ<br>またはクリックして選択<br><small>(8の倍数サイズ推奨。自動で4色に減色)</small></div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="note" id="info"></div>
+    <h2 style="margin-top:12px">2. パレット (クリックで背景色=色0に指定)</h2>
+    <div class="swatches" id="swatches"></div>
+    <div class="note">色0 はスプライトでは透明として扱われます</div>
+    <h2 style="margin-top:12px">3. プレビュー (NES 4色)</h2>
+    <canvas id="preview" width="128" height="128" style="width:256px"></canvas>
+  </div>
+  <div class="panel" style="flex:1; min-width:320px">
+    <h2>出力</h2>
+    <button class="btn" id="dl-chr">💾 .chr をダウンロード</button>
+    <button class="btn" id="copy-asm">📋 .byte をコピー</button>
+    <textarea id="out" spellcheck="false" placeholder="ここに ca65 用の .byte データが出ます"></textarea>
+    <div class="note">
+      タイルは左上から 8x8 で切り出し。パレットは NES 64色から最近傍でマッチ。<br>
+      chr.s に貼るか、.chr を .incbin してください。
+    </div>
+  </div>
+</main>
+<script>
+'use strict';
+// NES マスターパレット (2C02, 64色)
+const NES_PAL = [
+ [84,84,84],[0,30,116],[8,16,144],[48,0,136],[68,0,100],[92,0,48],[84,4,0],[60,24,0],
+ [32,42,0],[8,58,0],[0,64,0],[0,60,0],[0,50,60],[0,0,0],[0,0,0],[0,0,0],
+ [152,150,152],[8,76,196],[48,50,236],[92,30,228],[136,20,176],[160,20,100],[152,34,32],[120,60,0],
+ [84,90,0],[40,114,0],[8,124,0],[0,118,40],[0,102,120],[0,0,0],[0,0,0],[0,0,0],
+ [236,238,236],[76,154,236],[120,124,236],[176,98,236],[228,84,236],[236,88,180],[236,106,100],[212,136,32],
+ [160,170,0],[116,196,0],[76,208,32],[56,204,108],[56,180,204],[60,60,60],[0,0,0],[0,0,0],
+ [236,238,236],[168,204,236],[188,188,236],[212,178,236],[236,174,236],[236,174,212],[236,180,176],[228,196,144],
+ [204,210,120],[180,222,120],[168,226,144],[152,226,180],[160,214,228],[160,162,160],[0,0,0],[0,0,0]];
+const drop = document.getElementById('drop'), fileIn = document.getElementById('file');
+const info = document.getElementById('info'), out = document.getElementById('out');
+const prev = document.getElementById('preview'), pctx = prev.getContext('2d');
+let img = null, pal4 = [], bgIdx = 0, pixels = null, W = 0, H = 0;
+
+drop.addEventListener('click', () => fileIn.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); });
+fileIn.addEventListener('change', () => fileIn.files[0] && load(fileIn.files[0]));
+
+function load(f) {
+  const im = new Image();
+  im.onload = () => { img = im; process(); };
+  im.src = URL.createObjectURL(f);
+}
+
+function nearestNes(r, g, b) {
+  let best = 0, bd = 1e9;
+  for (let i = 0; i < 64; i++) {
+    if ((i & 15) >= 14) continue; // 黒のミラーは避ける
+    const [pr, pg, pb] = NES_PAL[i];
+    const d = (r-pr)**2*2 + (g-pg)**2*4 + (b-pb)**2*3;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+
+function process() {
+  W = Math.min(128, Math.ceil(img.width / 8) * 8);
+  H = Math.min(128, Math.ceil(img.height / 8) * 8);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, W, H).data;
+  // 色の頻度集計 (アルファ<128 は透明扱い)
+  const freq = new Map();
+  for (let i = 0; i < d.length; i += 4) {
+    const key = d[i+3] < 128 ? -1 : ((d[i]>>3)<<10) | ((d[i+1]>>3)<<5) | (d[i+2]>>3);
+    freq.set(key, (freq.get(key) || 0) + 1);
+  }
+  // 上位4色 (透明があれば色0候補)
+  const sorted = [...freq.entries()].sort((a,b) => b[1]-a[1]).map(e => e[0]);
+  const hasAlpha = sorted.includes(-1);
+  let picks = sorted.filter(k => k !== -1).slice(0, 4);
+  const toRgb = k => [((k>>10)&31)<<3, ((k>>5)&31)<<3, (k&31)<<3];
+  pal4 = picks.map(toRgb);
+  while (pal4.length < 4) pal4.push([0,0,0]);
+  bgIdx = 0;
+  if (hasAlpha) { pal4.unshift([13,13,13]); pal4 = pal4.slice(0,4); } // 透明を色0に
+  // ピクセル → 4色インデックス
+  pixels = new Uint8Array(W*H);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    if (d[i+3] < 128 && hasAlpha) { pixels[p] = 0; continue; }
+    let best = 0, bd = 1e9;
+    for (let j = 0; j < 4; j++) {
+      const dd = (d[i]-pal4[j][0])**2 + (d[i+1]-pal4[j][1])**2 + (d[i+2]-pal4[j][2])**2;
+      if (dd < bd) { bd = dd; best = j; }
+    }
+    pixels[p] = best;
+  }
+  info.textContent = `${img.width}x${img.height} → ${W}x${H} (${W/8}x${H/8} タイル = ${W*H/64} 枚), 色数 ${Math.min(sorted.length,99)} → 4`;
+  render();
+}
+
+function render() {
+  // bgIdx を色0 に並べ替えたパレット順
+  const order = [bgIdx, ...[0,1,2,3].filter(i => i !== bgIdx)];
+  const nes = order.map(i => nearestNes(...pal4[i]));
+  // スウォッチ
+  const sw = document.getElementById('swatches');
+  sw.innerHTML = '';
+  order.forEach((pi, slot) => {
+    const [r,g,b] = NES_PAL[nes[slot]];
+    const el = document.createElement('div');
+    el.className = 'sw' + (slot === 0 ? ' bg' : '');
+    el.style.background = `rgb(${r},${g},${b})`;
+    el.textContent = '$' + nes[slot].toString(16).padStart(2,'0').toUpperCase();
+    el.title = slot === 0 ? '色0 (背景/透明)' : `色${slot}`;
+    el.onclick = () => { bgIdx = pi; render(); };
+    sw.appendChild(el);
+  });
+  if (!pixels) return;
+  // プレビュー (NES 実色で描画)
+  prev.width = W; prev.height = H;
+  const idata = pctx.createImageData(W, H);
+  const inv = [0,0,0,0]; order.forEach((pi, slot) => inv[pi] = slot);
+  for (let p = 0; p < W*H; p++) {
+    const [r,g,b] = NES_PAL[nes[inv[pixels[p]]]];
+    idata.data[p*4] = r; idata.data[p*4+1] = g; idata.data[p*4+2] = b; idata.data[p*4+3] = 255;
+  }
+  pctx.putImageData(idata, 0, 0);
+  // CHR 生成
+  const tiles = [];
+  for (let ty = 0; ty < H/8; ty++) for (let tx = 0; tx < W/8; tx++) {
+    const p0 = [], p1 = [];
+    for (let y = 0; y < 8; y++) {
+      let b0 = 0, b1 = 0;
+      for (let x = 0; x < 8; x++) {
+        const v = inv[pixels[(ty*8+y)*W + tx*8+x]];
+        b0 = (b0<<1) | (v&1); b1 = (b1<<1) | (v>>1);
+      }
+      p0.push(b0); p1.push(b1);
+    }
+    tiles.push([...p0, ...p1]);
+  }
+  window._chr = new Uint8Array(tiles.flat());
+  // ca65 テキスト
+  const hex = v => '$' + v.toString(16).padStart(2,'0').toUpperCase();
+  let txt = `; ${W}x${H} → ${tiles.length} タイル (png2chr で生成)\n`;
+  txt += `; パレット: .byte ${nes.map(hex).join(',')}\n`;
+  tiles.forEach((t, i) => {
+    txt += `; tile ${i}\n`;
+    txt += '    .byte ' + t.slice(0,8).map(hex).join(',') + '\n';
+    txt += '    .byte ' + t.slice(8).map(hex).join(',') + '\n';
+  });
+  out.value = txt;
+}
+
+document.getElementById('dl-chr').addEventListener('click', () => {
+  if (!window._chr) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([window._chr], {type:'application/octet-stream'}));
+  a.download = 'tiles.chr';
+  a.click();
+});
+document.getElementById('copy-asm').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(out.value);
+  info.textContent = '.byte データをコピーしました';
+});
+</script>
+</body>
+</html>
