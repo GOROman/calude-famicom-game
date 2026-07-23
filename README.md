@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/13-items.nes)** (最新版: roms/13-items.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/14-clear-lives-pits.nes)** (最新版: roms/14-clear-lives-pits.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -73,6 +73,8 @@ make clean
 - **弓矢**: B の立ち上がりエッジで発射、ワールド座標で 4 px/f 飛翔。ブロックか敵に当たるか画面外に出ると消える (同時2発)
 - **決意マン**: 地上を 0.5 px/f でパトロールし、ブロックや世界の端で折り返す。矢が当たるか上から踏むと倒せる (踏むとプレイヤーはバウンド)。地上で接触するとスタート地点に戻される。倒すとダメージ顔 (X目) → 点滅消失のアニメ後、アイテムをドロップ
 - **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
+- **クリアと残機**: 一番右 (x=1008) 到達で「ステージクリア!」→ 最初から。残機3機、死ぬと X 目で点滅する死亡演出 → リスポーン。0機で GAMEOVER 表示。穴 (フィーチャ5) に落ちても死ぬ
+- **フォント**: ASCII $20-$5F の64文字 (A-Z 0-9 記号) を CGROM タイル $80-$BF に収録 (タイル = $80 + ASCII - $20)。GAMEOVER 表示や HUD の数字に使用
 
 ## ロードマップ
 
@@ -80,8 +82,9 @@ make clean
 - [x] **Step 2**: 背景 (地面・ブロック) と横スクロール
 - [x] **Step 3**: 地形との当たり判定
 - [x] **Step 4**: 敵キャラクター「決意マン」と接触判定
+- [x] **Step 4.5**: アイテム・ステージクリア・残機3機とゲームオーバー・穴 (落ちると死ぬ)
 - [ ] **Step 5**: サウンド (BGM / 効果音)
-- [ ] **Step 6**: タイトル画面・ゲームオーバー
+- [ ] **Step 6**: タイトル画面
 
 ## 開発日誌
 
@@ -92,6 +95,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [Step 3: ブロックの上に立つということ](docs/diary/step3.md)
 - [番外編: URLがカセットになる日 (ステージエディタ)](docs/diary/editor.md)
 - [Step 4: 決意マン、行動に倒れる](docs/diary/step4.md)
+- [終わりがあるからゲームになる (クリア・残機・穴・GAME OVER)](docs/diary/clear-lives.md)
 
 ## License
 

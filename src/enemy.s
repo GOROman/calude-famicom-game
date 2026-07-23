@@ -187,11 +187,7 @@ update_enemies:
     jsr kill_enemy
     jmp @col_next
 @really_die:
-    jsr player_init     ; スタート地点へ戻される
-    lda #0
-    sta arrow_flag
-    sta arrow_flag+1
-    sta weapon_level    ; パワー矢はやられると失う
+    jsr player_die_start ; 点滅+ダメージ顔の死亡演出へ
 @col_next:
     dex
     bmi @done
@@ -237,7 +233,19 @@ enemy_probe:
 @clear:
     pla
     tax
+    txa                 ; 進む先が穴なら引き返す (決意マンは穴に落ちない)
+    pha
+    jsr get_feature
+    cmp #FEAT_PIT
+    beq @pit
+    pla
+    tax
     clc
+    rts
+@pit:
+    pla
+    tax
+    sec
     rts
 
 ; ---- 決意マンを OAM バッファへ (4枚 x 3体, パレット1) ----

@@ -35,6 +35,7 @@
   <button class="tool" data-f="2">🧱🧱 縦2個</button>
   <button class="tool" data-f="3">☁️ 浮き (低)</button>
   <button class="tool" data-f="4">☁️ 浮き (高)</button>
+  <button class="tool" data-f="5">🕳 穴</button>
   <span style="flex:1"></span>
   <button class="btn" id="copy">🔗 URLをコピー</button>
   <button class="btn" id="rom">💾 .nes を書き出す</button>
@@ -56,10 +57,10 @@ let brush = 1;
 
 // ---- URL <-> マップ (64桁の 0-4 文字列を #ハッシュに) ----
 // ゲーム標準ステージ (src/level.s の level_map と同じ)
-const DEFAULT_MAP = '0000000033000101440034300020200034430000112200330122103300002200';
+const DEFAULT_MAP = '0000000033000101440034305520200034430550112200330122103305502200';
 function loadHash() {
   const h = location.hash.replace('#', '');
-  if (/^[0-4]{1,64}$/.test(h)) for (let i = 0; i < h.length; i++) map[i] = +h[i];
+  if (/^[0-5]{1,64}$/.test(h)) for (let i = 0; i < h.length; i++) map[i] = +h[i];
   else for (let i = 0; i < COLS; i++) map[i] = +DEFAULT_MAP[i] || 0;
 }
 function saveHash() {
@@ -80,12 +81,16 @@ function drawBlock(x, y) {  // 16x16 ブロック (輪郭+ハイライト)
 }
 function draw() {
   cx.fillStyle = SKY; cx.fillRect(0, 0, 1024, 240);
-  // 地面 (y=200-239)
-  cx.fillStyle = GRASS; cx.fillRect(0, 200, 1024, 3);
-  cx.fillStyle = GRASS_D; cx.fillRect(0, 203, 1024, 2);
-  cx.fillStyle = DIRT; cx.fillRect(0, 205, 1024, 35);
+  // 地面 (y=200-239, 穴の列は描かない)
+  for (let c = 0; c < COLS; c++) {
+    if (map[c] === 5) continue;
+    const x = c * CELL;
+    cx.fillStyle = GRASS; cx.fillRect(x, 200, CELL, 3);
+    cx.fillStyle = GRASS_D; cx.fillRect(x, 203, CELL, 2);
+    cx.fillStyle = DIRT; cx.fillRect(x, 205, CELL, 35);
+  }
   cx.fillStyle = DARK;
-  for (let i = 0; i < 400; i++) cx.fillRect((i * 37) % 1024, 208 + (i * 13) % 30, 1, 1);
+  for (let i = 0; i < 400; i++) { const gx = (i * 37) % 1024; if (map[(gx / CELL) | 0] !== 5) cx.fillRect(gx, 208 + (i * 13) % 30, 1, 1); }
   // フィーチャ
   for (let c = 0; c < COLS; c++) {
     const x = c * CELL, f = map[c];

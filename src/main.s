@@ -65,6 +65,9 @@ item_xhi:     .res 2
 item_y:       .res 2
 star_timer:   .res 1    ; 無敵の残り (2フレームに1減)
 weapon_level: .res 1    ; 0=通常矢 1=パワー矢 (速い+貫通)
+game_state:   .res 1    ; 0=プレイ中 1=クリア 2=死亡演出 3=ゲームオーバー
+state_timer:  .res 1    ; 演出の残りフレーム
+lives:        .res 1    ; 残機
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -112,6 +115,8 @@ reset:
     jsr level_init      ; 最初の2画面分 (64列) を描画
     jsr player_init
     jsr enemy_init
+    lda #3              ; 残機3でスタート
+    sta lives
 
     lda #%10000000      ; NMI 有効, BG/SP ともパターンテーブル0
     sta PPUCTRL
@@ -120,15 +125,23 @@ reset:
 
 main_loop:
     jsr read_controller
+    lda game_state
+    beq @playing
+    jsr update_state    ; クリア/死亡/ゲームオーバー演出中
+    jmp @draw
+@playing:
     jsr update_player
     jsr update_arrows
     jsr update_enemies
     jsr update_items
+    jsr check_clear
+@draw:
     jsr update_camera
     jsr draw_player
     jsr draw_arrows
     jsr draw_enemies
     jsr draw_items
+    jsr draw_hud
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
@@ -182,6 +195,7 @@ irq:
 .include "arrow.s"
 .include "enemy.s"
 .include "item.s"
+.include "state.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq

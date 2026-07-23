@@ -10,6 +10,7 @@ CAMERA_LOCK = 120                       ; プレイヤーを置く画面 X
 TILE_GRASS = $05
 TILE_DIRT  = $06
 TILE_BLOCK = $07
+FEAT_PIT   = 5          ; 穴 (地面なし。落ちると死ぬ)
 
 .segment "CODE"
 
@@ -145,7 +146,11 @@ render_column:
 :   sta col_buf,y
     dey
     bpl :-
-    lda #TILE_GRASS     ; 地面は常にある
+    lda tmp2
+    cmp #FEAT_PIT       ; 穴: 地面を描かない
+    bne :+
+    rts
+:   lda #TILE_GRASS     ; 地面
     sta col_buf+25
     lda #TILE_DIRT
     sta col_buf+26
@@ -183,15 +188,9 @@ put_block:
     sta col_buf,y
     rts
 
-; ---- 当たり判定: 点 (tmp/tmp2 = ワールドX 16bit, A = Y) を含むソリッドの上端 ----
-; 出力: A = 上端 Y (200/184/168/144/120)、空なら $FF。X, tmp3 を破壊
-probe_top:
-    sta tmp3
-    cmp #GROUND_TOP_Y
-    bcc :+
-    lda #GROUND_TOP_Y   ; 地面
-    rts
-:   lda tmp             ; メタ列 = (x >> 4) & 63
+; ---- メタ列のフィーチャ取得: tmp/tmp2 = ワールドX → A (Xを破壊, Yは保存) ----
+get_feature:
+    lda tmp             ; メタ列 = (x >> 4) & 63
     lsr
     lsr
     lsr
@@ -201,7 +200,26 @@ probe_top:
     ora metacol_hi,x
 :   tax
     lda level_map,x
-    beq @empty
+    rts
+
+; ---- 当たり判定: 点 (tmp/tmp2 = ワールドX 16bit, A = Y) を含むソリッドの上端 ----
+; 出力: A = 上端 Y (200/184/168/144/120)、空なら $FF。X, tmp3 を破壊 (Y は保存)
+; フィーチャ5 = 穴: 地面ごと存在しない
+probe_top:
+    sta tmp3
+    jsr get_feature
+    cmp #FEAT_PIT
+    beq @empty          ; 穴の列は何もソリッドがない
+    pha
+    lda tmp3
+    cmp #GROUND_TOP_Y
+    bcc @above_ground
+    pla                 ; 地面
+    lda #GROUND_TOP_Y
+    rts
+@above_ground:
+    pla
+    beq @empty          ; フィーチャ0: 平地のみ
     tax
     lda tmp3
     cmp block_top_tbl,x
@@ -240,13 +258,16 @@ level_map:
     .byte 4,4                           ; 16-17: 高い浮きブロック
     .res 2, 0                           ; 18-19
     .byte 3,4,3                         ; 20-22: 山なり
-    .res 3, 0                           ; 23-25
+    .byte 0                             ; 23
+    .byte 5,5                           ; 24-25: 穴! (上空は開けている)
     .byte 2                             ; 26: 縦2個
     .byte 0
     .byte 2                             ; 28: 縦2個
     .res 3, 0                           ; 29-31
     .byte 3,4,4,3                       ; 32-35: アーチ
-    .res 4, 0                           ; 36-39
+    .byte 0
+    .byte 5,5                           ; 37-38: 穴!
+    .byte 0
     .byte 1,1,2,2                       ; 40-43: 階段
     .res 2, 0                           ; 44-45
     .byte 3,3                           ; 46-47
@@ -254,6 +275,8 @@ level_map:
     .byte 1,2,2,1                       ; 49-52: 台形
     .byte 0
     .byte 3,3                           ; 54-55
-    .res 4, 0                           ; 56-59
+    .byte 0
+    .byte 5,5                           ; 57-58: 穴!
+    .byte 0
     .byte 2,2                           ; 60-61: 高柱
     .res 2, 0                           ; 62-63: ゴール前

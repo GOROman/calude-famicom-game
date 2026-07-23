@@ -203,6 +203,11 @@ update_player:
     sta vel_y_lo
     sta vel_y_hi
 @done:
+    lda player_y        ; 穴に落ちて画面外へ → 死亡
+    cmp #232
+    bcc @alive
+    jsr player_die_start
+@alive:
     rts
 
 ; ---- 横衝突: tmp/tmp2 = 前縁のワールド X。C=1 なら衝突 ----
@@ -274,12 +279,34 @@ probe_two:
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
 ; ポーズ選択: 上半身 = 通常/攻撃(弓を引く), 下半身 = 立ち/歩き2コマ/ジャンプ
 draw_player:
+    lda #0
+    sta tmp2            ; 1=死亡ポーズ
+    lda game_state
+    cmp #2
+    bne @screen
+    lda frame_count     ; 死亡演出: 2フレームごとに点滅
+    and #2
+    beq :+
+    lda #$FF            ; 消えているフレーム
+    sta OAM_BUF
+    sta OAM_BUF+4
+    sta OAM_BUF+8
+    sta OAM_BUF+12
+    rts
+:   inc tmp2
+@screen:
     lda world_x_lo      ; 画面 X = ワールド X - スクロール X
     sec
     sbc scroll_lo
     sta player_x
 
-    ; ---- 上半身: 攻撃中は弓を引くポーズ ----
+    ; ---- 上半身: 死亡中はダメージ顔 (X目) / 攻撃中は弓を引くポーズ ----
+    lda tmp2
+    beq @chk_attack
+    lda #$60
+    ldx #$61
+    bne @store_top
+@chk_attack:
     lda attack_timer
     beq @top_normal
     dec attack_timer
@@ -299,7 +326,9 @@ draw_player:
     stx spr_tile_buf+1
 
 @bottom:
-    ; ---- 下半身: 空中=ジャンプ / 歩行中=2コマアニメ / 停止=立ち ----
+    ; ---- 下半身: 死亡中=立ち / 空中=ジャンプ / 歩行中=2コマ / 停止=立ち ----
+    lda tmp2
+    bne @stand
     lda on_ground
     bne @grounded
     lda #$0B            ; ジャンプポーズ
