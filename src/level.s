@@ -183,19 +183,60 @@ put_block:
     sta col_buf,y
     rts
 
+; ---- 当たり判定: 点 (tmp/tmp2 = ワールドX 16bit, A = Y) を含むソリッドの上端 ----
+; 出力: A = 上端 Y (200/184/168/144/120)、空なら $FF。X, tmp3 を破壊
+probe_top:
+    sta tmp3
+    cmp #GROUND_TOP_Y
+    bcc :+
+    lda #GROUND_TOP_Y   ; 地面
+    rts
+:   lda tmp             ; メタ列 = (x >> 4) & 63
+    lsr
+    lsr
+    lsr
+    lsr
+    ldx tmp2
+    beq :+
+    ora metacol_hi,x
+:   tax
+    lda level_map,x
+    beq @empty
+    tax
+    lda tmp3
+    cmp block_top_tbl,x
+    bcc @empty          ; ブロックより上
+    cmp block_bot_tbl,x
+    bcs @empty          ; ブロックより下
+    lda block_top_tbl,x
+    rts
+@empty:
+    lda #$FF
+    rts
+
+GROUND_TOP_Y = 200
+
+.segment "RODATA"
+metacol_hi:    .byte $00, $10, $20, $30
+block_top_tbl: .byte 0, 184, 168, 144, 120  ; フィーチャ番号 → ブロック上端 Y
+block_bot_tbl: .byte 0, 200, 200, 160, 136  ; 同 下端 Y
+.segment "CODE"
+
 .segment "RODATA"
 block16_top: .byte $50, $51             ; 16x16 ブロックの上段 (左, 右)
 block16_bot: .byte $52, $53             ; 下段 (左, 右)
 
 ; 64メタ列 (16px単位) 分のフィーチャマップ
+; 直前の "LVLMAP01" はステージエディタが ROM 内の位置を特定するためのマーカー
+level_magic:
+    .byte "LVLMAP01"
 level_map:
     .res 8, 0                           ; 0-7: 平地
     .byte 3,3                           ; 8-9: 浮きブロック
-    .res 2, 0                           ; 10-11
-    .byte 1                             ; 12: ブロック
+    .res 3, 0                           ; 10-12
+    .byte 1                             ; 13: ブロック
     .byte 0
-    .byte 1                             ; 14: ブロック
-    .byte 0
+    .byte 1                             ; 15: ブロック
     .byte 4,4                           ; 16-17: 高い浮きブロック
     .res 2, 0                           ; 18-19
     .byte 3,4,3                         ; 20-22: 山なり

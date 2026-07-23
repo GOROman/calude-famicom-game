@@ -1,7 +1,11 @@
-; プレイヤー: 左右移動 + ジャンプ (Y は 8.8 固定小数点の速度で滑らかに)
+; プレイヤー: 左右移動 + マリオ風可変ジャンプ + 16x16ブロックとの当たり判定
+; 判定は probe_top (level.s) を使った点判定:
+;   横 = 前縁3点 (y+1, y+8, y+15) に当たれば移動取消
+;   縦 = 落下中は足元2点 (x+2, x+13) で着地スナップ / 上昇中は頭上2点で天井
+;   接地中に足元が空になったら落下開始 (足場から歩いて落ちる)
 
 PLAYER_SPEED    = 2         ; 横移動 px/フレーム
-PLAYER_GROUND_Y = 184       ; 接地時のスプライト上端 Y (地面ライン = 200)
+PLAYER_GROUND_Y = 184       ; 平地での接地 Y (地面ライン = 200)
 
 ; スーパーマリオ風可変ジャンプ (SMB の JumpMForceData/FallMForceData 相当)
 JUMP_VEL_HI     = $FC       ; ジャンプ初速 -4.0 px/フレーム (SMB PlayerYSpdData)
@@ -22,12 +26,16 @@ player_init:
     rts
 
 update_player:
-    ; ---- 左右移動 (16bit ワールド座標) ----
+    ; ---- 左右移動 (16bit ワールド座標 + 横衝突) ----
     lda buttons
     and #BTN_LEFT
     beq @not_left
     lda #1
     sta facing
+    lda world_x_lo
+    pha
+    lda world_x_hi
+    pha
     lda world_x_lo
     sec
     sbc #PLAYER_SPEED
@@ -35,16 +43,34 @@ update_player:
     lda world_x_hi
     sbc #0
     sta world_x_hi
-    bpl @not_left
+    bpl :+
     lda #0              ; 左端 (world 0) でクランプ
     sta world_x_lo
     sta world_x_hi
+:   lda world_x_lo      ; 左縁 (x+0) の衝突チェック
+    sta tmp
+    lda world_x_hi
+    sta tmp2
+    jsr probe_side
+    bcc @left_ok
+    pla                 ; 衝突 → 移動取消
+    sta world_x_hi
+    pla
+    sta world_x_lo
+    jmp @not_left
+@left_ok:
+    pla
+    pla
 @not_left:
     lda buttons
     and #BTN_RIGHT
     beq @not_right
     lda #0
     sta facing
+    lda world_x_lo
+    pha
+    lda world_x_hi
+    pha
     lda world_x_lo
     clc
     adc #PLAYER_SPEED
@@ -53,26 +79,55 @@ update_player:
     adc #0
     sta world_x_hi
     cmp #>WORLD_X_MAX   ; 右端クランプ
-    bcc @not_right
+    bcc @chk_right
     lda world_x_lo
     cmp #<WORLD_X_MAX
-    bcc @not_right
+    bcc @chk_right
     lda #<WORLD_X_MAX
     sta world_x_lo
     lda #>WORLD_X_MAX
     sta world_x_hi
+@chk_right:
+    lda world_x_lo      ; 右縁 (x+15) の衝突チェック
+    clc
+    adc #15
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    jsr probe_side
+    bcc @right_ok
+    pla                 ; 衝突 → 移動取消
+    sta world_x_hi
+    pla
+    sta world_x_lo
+    jmp @not_right
+@right_ok:
+    pla
+    pla
 @not_right:
 
-    ; ---- ジャンプ開始 (A の立ち上がりエッジのみ。押しっぱなし再ジャンプ禁止) ----
+    ; ---- 接地中: 足場チェックとジャンプ開始 ----
     lda on_ground
     beq @airborne
+    jsr probe_feet
+    cmp #$FF
+    bne @has_ground
+    lda #0              ; 足場がない → 落下開始
+    sta on_ground
+    sta vel_y_lo
+    sta vel_y_hi
+    beq @airborne
+@has_ground:
     lda buttons
     and #BTN_A
-    beq @done           ; 接地中で A 押下なし → 縦方向の処理なし
-    lda prev_buttons
+    bne :+
+    jmp @done           ; 接地中で A 押下なし → 縦方向の処理なし
+:   lda prev_buttons
     and #BTN_A
-    bne @done           ; 前フレームから押しっぱなし → ジャンプしない
-    lda #0
+    beq :+
+    jmp @done           ; 前フレームから押しっぱなし → ジャンプしない
+:   lda #0
     sta on_ground
     sta vel_y_lo
     lda #JUMP_VEL_HI
@@ -120,10 +175,14 @@ update_player:
     lda player_y
     adc vel_y_hi
     sta player_y
-    ; ---- 着地判定 ----
-    cmp #PLAYER_GROUND_Y
-    bcc @done           ; まだ地面より上
-    lda #PLAYER_GROUND_Y
+    ; ---- 縦衝突 ----
+    lda vel_y_hi
+    bmi @rising
+    jsr probe_feet      ; 落下中: 足元
+    cmp #$FF
+    beq @done
+    sec                 ; 着地: y = 面の上端 - 16
+    sbc #16
     sta player_y
     lda #0
     sta player_y_sub
@@ -131,7 +190,119 @@ update_player:
     sta vel_y_hi
     lda #1
     sta on_ground
+    jmp @done
+@rising:
+    jsr probe_head      ; 上昇中: 頭上
+    cmp #$FF
+    beq @done
+    clc                 ; 天井: y = ブロック下端
+    adc #16
+    sta player_y
+    lda #0
+    sta player_y_sub
+    sta vel_y_lo
+    sta vel_y_hi
 @done:
+    rts
+
+; ---- 横衝突: tmp/tmp2 = 前縁のワールド X。C=1 なら衝突 ----
+probe_side:
+    lda player_y
+    clc
+    adc #1
+    jsr probe_top
+    cmp #$FF
+    bne @hit
+    lda player_y
+    clc
+    adc #8
+    jsr probe_top
+    cmp #$FF
+    bne @hit
+    lda player_y
+    clc
+    adc #15
+    jsr probe_top
+    cmp #$FF
+    bne @hit
+    clc
+    rts
+@hit:
+    sec
+    rts
+
+; ---- 足元 (y+16) の面: A = min(top(x+2), top(x+13)) / $FF ----
+probe_feet:
+    lda #16
+    bne probe_two       ; 常に分岐
+; ---- 頭上 (y+0) の面 ----
+probe_head:
+    lda #0
+; ---- 共通: A = Y オフセット。x+2 / x+13 の2点を判定し高い方 (小さい Y) を返す ----
+probe_two:
+    pha                 ; Y オフセットを保存
+    lda world_x_lo      ; 1点目: x+2
+    clc
+    adc #2
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    pla
+    pha
+    clc
+    adc player_y
+    jsr probe_top
+    tay                 ; Y = 1点目の結果 (probe_top は Y を壊さない)
+    lda world_x_lo      ; 2点目: x+13
+    clc
+    adc #13
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    pla
+    clc
+    adc player_y
+    jsr probe_top
+    sty tmp3            ; 1点目 (probe_top 内の tmp3 は用済み)
+    cmp tmp3
+    bcc :+              ; 2点目のほうが高い
+    lda tmp3
+:   rts
+
+; ---- 影を落とす面の Y (プレイヤー中央 x+8 の列。ブロック上空ならその上端) ----
+shadow_surface:
+    lda world_x_lo
+    clc
+    adc #8
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    lda tmp
+    lsr
+    lsr
+    lsr
+    lsr
+    ldx tmp2
+    beq :+
+    ora metacol_hi,x
+:   tax
+    lda level_map,x
+    beq @ground
+    tax
+    lda player_y
+    clc
+    adc #16             ; 足元
+    cmp block_top_tbl,x
+    bcc @on_block       ; ブロックより上にいる → ブロック上面に影
+    beq @on_block       ; ちょうど乗っている
+@ground:
+    lda #200
+    rts
+@on_block:
+    lda block_top_tbl,x
     rts
 
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
@@ -220,6 +391,53 @@ draw_player:
     bne @loop
     rts
 
+; ---- 影 (スプライト 6,7 = OAM +24/+28): 高度に応じて 3 段階に縮小 ----
+draw_shadow:
+    jsr shadow_surface
+    sta tmp3            ; 面の Y
+    sec
+    sbc #5
+    sta OAM_BUF+24      ; 影スプライトの Y (楕円が面のライン上に乗る)
+    sta OAM_BUF+28
+    lda tmp3
+    sec
+    sbc player_y
+    sec
+    sbc #16             ; 高度 = 面 - 足元
+    beq @large
+    cmp #25
+    bcc @medium
+    lda #$56            ; 高い → 小さい影
+    bne @single
+@medium:
+    lda #$55            ; 中くらいの影
+@single:
+    sta OAM_BUF+25
+    lda #0
+    sta OAM_BUF+26
+    lda player_x
+    clc
+    adc #4
+    sta OAM_BUF+27
+    lda #$FF            ; 2枚目は隠す
+    sta OAM_BUF+28
+    rts
+@large:
+    lda #$54            ; 接地 → 16px の影 (左右2枚)
+    sta OAM_BUF+25
+    sta OAM_BUF+29
+    lda #0
+    sta OAM_BUF+26
+    lda #$40            ; 右半分は水平反転
+    sta OAM_BUF+30
+    lda player_x
+    sta OAM_BUF+27
+    clc
+    adc #8
+    sta OAM_BUF+31
+    rts
+
 .segment "RODATA"
 spr_xoff:    .byte 0, 8, 0, 8
 spr_yoff:    .byte 0, 0, 8, 8
+.segment "CODE"

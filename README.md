@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/09-smb-blocks.nes)** (最新版: roms/09-smb-blocks.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/10-collision-shadow.nes)** (最新版: roms/10-collision-shadow.nes)
 
 動作確認には自作 WASM エミュレータ [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu) を使用。
 
@@ -73,7 +73,7 @@ make clean
 
 - [x] **Step 1**: 画面クリア + スプライト表示、左右移動とジャンプ
 - [x] **Step 2**: 背景 (地面・ブロック) と横スクロール
-- [ ] **Step 3**: 地形との当たり判定
+- [x] **Step 3**: 地形との当たり判定
 - [ ] **Step 4**: 敵キャラクター「決意マン」と接触判定
 - [ ] **Step 5**: サウンド (BGM / 効果音)
 - [ ] **Step 6**: タイトル画面・ゲームオーバー

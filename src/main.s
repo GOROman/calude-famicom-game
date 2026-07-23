@@ -48,6 +48,7 @@ spr_tile_buf: .res 4    ; 表示するタイル4枚 (facing 反映済み: TL,TR,
 anim_timer:   .res 1    ; 歩きアニメ用カウンタ
 attack_timer: .res 1    ; 攻撃ポーズの残りフレーム
 tmp2:         .res 1
+tmp3:         .res 1
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -107,6 +108,7 @@ main_loop:
     jsr update_camera
     jsr draw_player
     jsr draw_arrows
+    jsr draw_shadow
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
