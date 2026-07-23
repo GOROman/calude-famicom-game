@@ -8,50 +8,7 @@ ARROW_OAM   = 16        ; OAM バッファ内オフセット (スプライト4,5
 .segment "CODE"
 
 update_arrows:
-    ; ---- 発射: B の立ち上がりエッジ ----
-    lda buttons
-    and #BTN_B
-    beq @move
-    lda prev_buttons
-    and #BTN_B
-    bne @move
-    ldx #0              ; 空きスロットを探す
-    lda arrow_flag
-    beq @spawn
-    ldx #1
-    lda arrow_flag+1
-    bne @move           ; 2発とも飛行中 → 撃てない
-@spawn:
-    lda facing
-    beq @spawn_right
-    lda #2              ; 左向き発射
-    sta arrow_flag,x
-    lda world_x_lo      ; 発射位置: プレイヤー左端-8
-    sec
-    sbc #8
-    sta arrow_xlo,x
-    lda world_x_hi
-    sbc #0
-    sta arrow_xhi,x
-    jmp @spawn_y
-@spawn_right:
-    lda #1              ; 右向き発射
-    sta arrow_flag,x
-    lda world_x_lo      ; 発射位置: プレイヤー右端
-    clc
-    adc #16
-    sta arrow_xlo,x
-    lda world_x_hi
-    adc #0
-    sta arrow_xhi,x
-@spawn_y:
-    lda player_y        ; 弓の高さ (手元)
-    clc
-    adc #6
-    sta arrow_y,x
-
-@move:
-    ; ---- 移動と画面外判定 (発射したフレームから動く) ----
+    ; ---- 移動と画面外判定 (発射より先に処理 → 発射フレームでは動かない) ----
     ldx #0
 @move_loop:
     lda arrow_flag,x
@@ -90,6 +47,49 @@ update_arrows:
     inx
     cpx #2
     bne @move_loop
+
+    ; ---- 発射: B の立ち上がりエッジ ----
+    lda buttons
+    and #BTN_B
+    beq @done
+    lda prev_buttons
+    and #BTN_B
+    bne @done
+    ldx #0              ; 空きスロットを探す
+    lda arrow_flag
+    beq @spawn
+    ldx #1
+    lda arrow_flag+1
+    bne @done           ; 2発とも飛行中 → 撃てない
+@spawn:
+    lda facing
+    beq @spawn_right
+    lda #2              ; 左向き発射
+    sta arrow_flag,x
+    lda world_x_lo      ; 発射位置: プレイヤー左端-8
+    sec
+    sbc #8
+    sta arrow_xlo,x
+    lda world_x_hi
+    sbc #0
+    sta arrow_xhi,x
+    jmp @spawn_y
+@spawn_right:
+    lda #1              ; 右向き発射
+    sta arrow_flag,x
+    lda world_x_lo      ; 発射位置: プレイヤー右端
+    clc
+    adc #16
+    sta arrow_xlo,x
+    lda world_x_hi
+    adc #0
+    sta arrow_xhi,x
+@spawn_y:
+    lda player_y        ; 弓の高さ (手元)
+    clc
+    adc #6
+    sta arrow_y,x
+@done:
     rts
 
 ; ---- 矢を OAM バッファへ (スプライト 4,5) ----
