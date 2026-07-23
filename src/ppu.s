@@ -32,15 +32,35 @@ ppu_init:
     bne @clr
     dex
     bne @clr
+
+    ; 地面: タイル行25 (y=200-207) に草, 行26-29 に土
+    ; $2000 + 25*32 = $2320
+    bit PPUSTATUS
+    lda #$23
+    sta PPUADDR
+    lda #$20
+    sta PPUADDR
+    lda #$05            ; 草タイル x32
+    ldx #32
+@grass:
+    sta PPUDATA
+    dex
+    bne @grass
+    lda #$06            ; 土タイル x128 (4行)
+    ldx #128
+@dirt:
+    sta PPUDATA
+    dex
+    bne @dirt
     rts
 
 .segment "RODATA"
 palette_data:
-    ; BG パレット (背景色 = 空色)
-    .byte $21,$0F,$29,$30
-    .byte $21,$0F,$29,$30
-    .byte $21,$0F,$29,$30
-    .byte $21,$0F,$29,$30
+    ; BG パレット0 (空色, 暗緑, 明緑, 茶 = 地面用)
+    .byte $21,$09,$29,$17
+    .byte $21,$09,$29,$17
+    .byte $21,$09,$29,$17
+    .byte $21,$09,$29,$17
     ; スプライトパレット (輪郭=黒, フード/服=緑, 肌/弦=肌色)
     .byte $21,$0F,$1A,$27
     .byte $21,$0F,$1A,$27

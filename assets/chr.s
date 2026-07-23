@@ -16,3 +16,11 @@
 ; tile $04: hunter bottom-right
     .byte $07,$07,$0B,$33,$93,$92,$90,$F0
     .byte $FA,$FA,$F2,$C2,$62,$60,$60,$00
+
+; ---- BG タイル (scratchpad の ground.py で生成) ----
+; tile $05: grass top (地面の上端: 明緑の草 + 茶の土)
+    .byte $00,$44,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $FF,$BB,$00,$FF,$DF,$FD,$FF,$BF
+; tile $06: dirt (土: 茶ベースに暗色の粒)
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $FF,$EF,$FE,$7F,$FB,$DF,$FF,$F7
