@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>狩人行動 (Calude Kodo) ステージエディタ</title>
+<style>
+  :root { --red:#8b1a1a; --cream:#f5e9d0; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#1a1a1a; color:var(--cream); font-family:'Hiragino Kaku Gothic ProN', ui-sans-serif, sans-serif; }
+  header { background:var(--red); padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { font-size:12px; opacity:.8; }
+  #toolbar { display:flex; gap:8px; padding:10px 16px; flex-wrap:wrap; align-items:center; }
+  .tool { border:2px solid #555; background:#2a2a2a; color:var(--cream); padding:8px 12px;
+          border-radius:6px; cursor:pointer; font-size:13px; }
+  .tool.sel { border-color:#ffd700; background:#3a3220; }
+  .btn { background:var(--red); border:none; color:var(--cream); padding:8px 14px; border-radius:6px;
+         cursor:pointer; font-size:13px; font-weight:bold; box-shadow:0 2px 0 #5d0f0f; }
+  .btn:active { transform:translateY(2px); box-shadow:none; }
+  #wrap { overflow-x:auto; margin:0 16px 8px; border:3px solid #444; border-radius:4px; background:#000; }
+  canvas { display:block; image-rendering:pixelated; cursor:crosshair; }
+  #status { padding:4px 16px 16px; font-size:12px; color:#aaa; font-family:ui-monospace, monospace; word-break:break-all; }
+  a { color:#7fc4ff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>狩人行動 ステージエディタ</h1>
+  <span class="sub">クリック/ドラッグで配置 — URLがそのままセーブデータ</span>
+</header>
+<div id="toolbar">
+  <button class="tool" data-f="0">🟦 平地</button>
+  <button class="tool sel" data-f="1">🧱 ブロック</button>
+  <button class="tool" data-f="2">🧱🧱 縦2個</button>
+  <button class="tool" data-f="3">☁️ 浮き (低)</button>
+  <button class="tool" data-f="4">☁️ 浮き (高)</button>
+  <span style="flex:1"></span>
+  <button class="btn" id="copy">🔗 URLをコピー</button>
+  <button class="btn" id="rom">💾 .nes を書き出す</button>
+  <button class="btn" id="clear">🗑 全消去</button>
+</div>
+<div id="wrap"><canvas id="cv" width="1024" height="240" style="width:1536px;height:360px"></canvas></div>
+<div id="status"></div>
+<div class="note" style="padding:4px 16px 16px; font-size:12px; color:#aaa">
+  遊び方: 書き出した .nes を <a href="https://goroman.github.io/cluade-famicom-emu/" target="_blank">cluade-famicom-emu</a> の「ROMを開く」で読み込む。
+  ベースROM: <a href="base.nes">base.nes</a> / <a href="https://github.com/GOROman/calude-famicom-game">GitHub</a>
+</div>
+<script>
+'use strict';
+const COLS = 64, CELL = 16;
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+const statusEl = document.querySelector('#status');
+let map = new Uint8Array(COLS);
+let brush = 1;
+
+// ---- URL <-> マップ (64桁の 0-4 文字列を #ハッシュに) ----
+// ゲーム標準ステージ (src/level.s の level_map と同じ)
+const DEFAULT_MAP = '0000000033000101440034300020200034430000112200330122103300002200';
+function loadHash() {
+  const h = location.hash.replace('#', '');
+  if (/^[0-4]{1,64}$/.test(h)) for (let i = 0; i < h.length; i++) map[i] = +h[i];
+  else for (let i = 0; i < COLS; i++) map[i] = +DEFAULT_MAP[i] || 0;
+}
+function saveHash() {
+  const s = Array.from(map).join('');
+  history.replaceState(null, '', s === '0'.repeat(COLS) ? location.pathname : '#' + s);
+  statusEl.textContent = 'セーブデータ: ' + (location.hash || '(空)');
+}
+
+// ---- 描画 (ゲームと同じ配色) ----
+const SKY = '#64b0ff', GRASS = '#88d800', GRASS_D = '#0b4800', DIRT = '#99500b', DARK = '#0b4800';
+function drawBlock(x, y) {  // 16x16 ブロック (輪郭+ハイライト)
+  cx.fillStyle = DIRT; cx.fillRect(x, y, 16, 16);
+  cx.fillStyle = DARK; cx.fillRect(x, y, 16, 1); cx.fillRect(x, y + 15, 16, 1);
+  cx.fillRect(x, y, 1, 16); cx.fillRect(x + 15, y, 1, 16);
+  cx.fillRect(x + 10, y + 1, 1, 3); cx.fillRect(x + 1, y + 4, 14, 1);
+  cx.fillRect(x + 4, y + 5, 1, 3); cx.fillRect(x + 1, y + 8, 14, 1);
+  cx.fillStyle = GRASS; cx.fillRect(x + 1, y + 1, 2, 1); cx.fillRect(x + 1, y + 2, 1, 1);
+}
+function draw() {
+  cx.fillStyle = SKY; cx.fillRect(0, 0, 1024, 240);
+  // 地面 (y=200-239)
+  cx.fillStyle = GRASS; cx.fillRect(0, 200, 1024, 3);
+  cx.fillStyle = GRASS_D; cx.fillRect(0, 203, 1024, 2);
+  cx.fillStyle = DIRT; cx.fillRect(0, 205, 1024, 35);
+  cx.fillStyle = DARK;
+  for (let i = 0; i < 400; i++) cx.fillRect((i * 37) % 1024, 208 + (i * 13) % 30, 1, 1);
+  // フィーチャ
+  for (let c = 0; c < COLS; c++) {
+    const x = c * CELL, f = map[c];
+    if (f === 1) drawBlock(x, 184);
+    else if (f === 2) { drawBlock(x, 168); drawBlock(x, 184); }
+    else if (f === 3) drawBlock(x, 144);
+    else if (f === 4) drawBlock(x, 120);
+  }
+  // スタート位置の狩人 (ざっくり)
+  cx.fillStyle = '#00930c'; cx.fillRect(120, 186, 12, 12);
+  cx.fillStyle = '#229eea'; cx.fillRect(122, 189, 8, 4);
+  // グリッド
+  cx.fillStyle = 'rgba(0,0,0,.12)';
+  for (let c = 1; c < COLS; c++) cx.fillRect(c * CELL, 0, 1, 240);
+  saveHash();
+}
+
+// ---- 入力 ----
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tool').forEach(x => x.classList.remove('sel'));
+  b.classList.add('sel');
+  brush = +b.dataset.f;
+}));
+let painting = false;
+function paint(e) {
+  const r = cv.getBoundingClientRect();
+  const c = Math.floor((e.clientX - r.left) / r.width * COLS);
+  if (c >= 0 && c < COLS && map[c] !== brush) { map[c] = brush; draw(); }
+}
+cv.addEventListener('pointerdown', e => { painting = true; cv.setPointerCapture(e.pointerId); paint(e); });
+cv.addEventListener('pointermove', e => painting && paint(e));
+cv.addEventListener('pointerup', () => painting = false);
+
+document.getElementById('clear').addEventListener('click', () => { map.fill(0); draw(); });
+document.getElementById('copy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(location.href);
+  statusEl.textContent = 'URL をコピーしました! このURLを開けば続きから編集できます';
+});
+
+// ---- ROM 書き出し: base.nes の "LVLMAP01" マーカー直後 64 バイトを差し替え ----
+document.getElementById('rom').addEventListener('click', async () => {
+  try {
+    const buf = new Uint8Array(await (await fetch('base.nes')).arrayBuffer());
+    const magic = [...'LVLMAP01'].map(ch => ch.charCodeAt(0));
+    let off = -1;
+    outer: for (let i = 0; i < buf.length - 8; i++) {
+      for (let j = 0; j < 8; j++) if (buf[i + j] !== magic[j]) continue outer;
+      off = i + 8; break;
+    }
+    if (off < 0) throw new Error('LVLMAP01 マーカーが見つかりません');
+    buf.set(map, off);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/octet-stream' }));
+    a.download = 'calude-stage.nes';
+    a.click();
+    statusEl.textContent = 'calude-stage.nes を書き出しました (level_map @ 0x' + off.toString(16) + ')';
+  } catch (err) {
+    statusEl.textContent = 'ROM 書き出し失敗: ' + err;
+  }
+});
+
+loadHash();
+draw();
+</script>
+</body>
+</html>
