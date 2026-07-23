@@ -126,6 +126,7 @@ update_arrows:
     sta arrow_y,x
     lda #12             ; 弓を引くポーズを12フレーム表示
     sta attack_timer
+    jsr sfx_shot
 @done:
     rts
 

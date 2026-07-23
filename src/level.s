@@ -138,8 +138,8 @@ render_column:
     sta tmp             ; 0=左半分, 1=右半分
     tya
     lsr
-    tax
-    lda level_map,x     ; メタ列のフィーチャ
+    tay
+    lda (level_ptr),y   ; 現在ステージのメタ列フィーチャ
     sta tmp2
     lda #0
     ldy #29
@@ -188,7 +188,8 @@ put_block:
     sta col_buf,y
     rts
 
-; ---- メタ列のフィーチャ取得: tmp/tmp2 = ワールドX → A (Xを破壊, Yは保存) ----
+; ---- メタ列のフィーチャ取得: tmp/tmp2 = ワールドX → A (X,Y を破壊) ----
+; 現在ステージのマップ (level_ptr) を参照する
 get_feature:
     lda tmp             ; メタ列 = (x >> 4) & 63
     lsr
@@ -198,8 +199,8 @@ get_feature:
     ldx tmp2
     beq :+
     ora metacol_hi,x
-:   tax
-    lda level_map,x
+:   tay
+    lda (level_ptr),y
     rts
 
 ; ---- 当たり判定: 点 (tmp/tmp2 = ワールドX 16bit, A = Y) を含むソリッドの上端 ----
@@ -244,39 +245,5 @@ block_bot_tbl: .byte 0, 200, 200, 160, 136  ; 同 下端 Y
 block16_top: .byte $50, $51             ; 16x16 ブロックの上段 (左, 右)
 block16_bot: .byte $52, $53             ; 下段 (左, 右)
 
-; 64メタ列 (16px単位) 分のフィーチャマップ
-; 直前の "LVLMAP01" はステージエディタが ROM 内の位置を特定するためのマーカー
-level_magic:
-    .byte "LVLMAP01"
-level_map:
-    .res 8, 0                           ; 0-7: 平地
-    .byte 3,3                           ; 8-9: 浮きブロック
-    .res 3, 0                           ; 10-12
-    .byte 1                             ; 13: ブロック
-    .byte 0
-    .byte 1                             ; 15: ブロック
-    .byte 4,4                           ; 16-17: 高い浮きブロック
-    .res 2, 0                           ; 18-19
-    .byte 3,4,3                         ; 20-22: 山なり
-    .byte 0                             ; 23
-    .byte 5,5                           ; 24-25: 穴! (上空は開けている)
-    .byte 2                             ; 26: 縦2個
-    .byte 0
-    .byte 2                             ; 28: 縦2個
-    .res 3, 0                           ; 29-31
-    .byte 3,4,4,3                       ; 32-35: アーチ
-    .byte 0
-    .byte 5,5                           ; 37-38: 穴!
-    .byte 0
-    .byte 1,1,2,2                       ; 40-43: 階段
-    .res 2, 0                           ; 44-45
-    .byte 3,3                           ; 46-47
-    .byte 0
-    .byte 1,2,2,1                       ; 49-52: 台形
-    .byte 0
-    .byte 3,3                           ; 54-55
-    .byte 0
-    .byte 5,5                           ; 57-58: 穴!
-    .byte 0
-    .byte 2,2                           ; 60-61: 高柱
-    .res 2, 0                           ; 62-63: ゴール前
+; ステージ 1-1〜1-4 のマップと敵スポーン (levelgen.py 生成)
+.include "../assets/levels.s"

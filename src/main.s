@@ -70,10 +70,25 @@ state_timer:  .res 1    ; 演出の残りフレーム
 lives:        .res 1    ; 残機
 snd_tick:     .res 1    ; 音源: ステップ内フレーム (0-7)
 snd_step:     .res 1    ; 音源: シーケンサステップ (0-15)
+snd_bar:      .res 1    ; 音源: 小節 (0-3, コード進行 Am F C G)
 hat_vol:      .res 1    ; ハイハットの現在音量 (エンベロープ)
 hat_decay:    .res 1    ; ハイハットの減衰速度
 vib_phase:    .res 1    ; ベースビブラートの LFO 位相
-bass_per_lo:  .res 1    ; ベースの基準周期 (ビブラートの中心)
+mel_vol:      .res 1    ; リードの現在音量 (ソフトエンベロープ)
+bass_cur_lo:  .res 1    ; 303 ベース: 現在周期 (スライド中の値)
+bass_cur_hi:  .res 1
+bass_tgt_lo:  .res 1    ; 303 ベース: ターゲット周期
+bass_tgt_hi:  .res 1
+bass_age:     .res 1    ; ノートオンからの経過 (ビブラート深さ切替)
+sfx1_type:    .res 1    ; SQ1 SFX: 0=なし 1=ジャンプ 2=ミス
+sfx1_t:       .res 1
+sfx2_type:    .res 1    ; SQ2 SFX: 0=なし 1=ショット 2=敵撃破
+sfx2_t:       .res 1
+sfxn_t:       .res 1    ; ノイズ SFX (敵ヒット) の残り
+current_stage: .res 1   ; 0-3 = ステージ 1-1〜1-4
+level_ptr:    .res 2    ; 現在ステージの level_map ポインタ
+probe_res:    .res 1    ; probe_two の中間結果
+text_ptr:     .res 2    ; 状態テキストのテーブルポインタ
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -117,18 +132,12 @@ reset:
 :   bit PPUSTATUS       ; vblank 2回目待ち
     bpl :-
 
-    jsr ppu_init        ; パレット設定 + ネームテーブルクリア
-    jsr level_init      ; 最初の2画面分 (64列) を描画
-    jsr player_init
-    jsr enemy_init
     jsr sound_init
     lda #3              ; 残機3でスタート
     sta lives
-
-    lda #%10000000      ; NMI 有効, BG/SP ともパターンテーブル0
-    sta PPUCTRL
-    lda #%00011110      ; BG + スプライト表示
-    sta PPUMASK
+    lda #0
+    sta current_stage
+    jsr start_stage     ; パレット/NT/レベル/プレイヤー/敵の初期化と描画再開
 
 main_loop:
     jsr read_controller

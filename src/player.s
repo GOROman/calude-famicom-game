@@ -134,6 +134,7 @@ update_player:
     sta vel_y_hi
     lda player_y
     sta jump_origin_y   ; SMB: 跳んだ高さの判定用に開始位置を記録
+    jsr sfx_jump
 
 @airborne:
     ; 重力選択: 上昇中かつ A 押下中だけ弱い重力 → 押下時間でジャンプ高が変わる
@@ -258,7 +259,7 @@ probe_two:
     clc
     adc player_y
     jsr probe_top
-    tay                 ; Y = 1点目の結果 (probe_top は Y を壊さない)
+    sta probe_res       ; 1点目の結果 (probe_top は X,Y,tmp3 を壊す)
     lda world_x_lo      ; 2点目: x+13
     clc
     adc #13
@@ -270,10 +271,9 @@ probe_two:
     clc
     adc player_y
     jsr probe_top
-    sty tmp3            ; 1点目 (probe_top 内の tmp3 は用済み)
-    cmp tmp3
+    cmp probe_res
     bcc :+              ; 2点目のほうが高い
-    lda tmp3
+    lda probe_res
 :   rts
 
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----

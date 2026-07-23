@@ -9,15 +9,26 @@ ENEMY_ATTR   = %00000001 ; スプライトパレット1
 
 .segment "CODE"
 enemy_init:
+    lda current_stage   ; テーブル基点 = ステージ * 3
+    asl
+    clc
+    adc current_stage
+    sta tmp
     ldx #2
 @loop:
-    lda enemy_spawn_lo,x
+    txa
+    clc
+    adc tmp
+    tay
+    lda stage_enemy_lo,y
     sta enemy_xlo,x
-    lda enemy_spawn_hi,x
+    lda stage_enemy_hi,y
     sta enemy_xhi,x
     lda #1
     sta enemy_flag,x
     sta enemy_dir,x     ; 左向きに歩き出す
+    lda #0
+    sta enemy_timer,x
     dex
     bpl @loop
     rts
@@ -205,6 +216,8 @@ kill_enemy:
     sta enemy_timer,x
     lda #12
     sta fx_timer
+    jsr sfx_hit         ; ヒットのノイズ + 撃破ジングル
+    jsr sfx_defeat
     lda enemy_xlo,x     ; エフェクトは敵の中央
     clc
     adc #4
@@ -351,7 +364,4 @@ draw_enemies:
     sta OAM_BUF+72
     rts
 
-.segment "RODATA"
-enemy_spawn_lo: .byte <320, <560, <880
-enemy_spawn_hi: .byte >320, >560, >880
-.segment "CODE"
+; スポーン位置はステージ別テーブル stage_enemy_lo/hi (assets/levels.s) を参照

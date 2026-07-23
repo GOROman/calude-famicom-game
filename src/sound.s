@@ -1,8 +1,12 @@
-; 音源ドライバ: TR-808 風リズム + ベース
+; 音源ドライバ: TR-808 リズム + TB-303 風ベース + コード進行するメロディ + SFX
 ;   キック/スネア = DMC (DPCM サンプル, assets/drums.s $C000/$C3C0)
 ;   ハイハット    = ノイズ + ソフトウェアエンベロープ (クローズ=速い減衰, オープン=遅い)
-;   ベース        = 三角波 + ビブラート LFO (サインテーブルでピッチ変調)
-; 16 ステップシーケンサ (1ステップ = 8フレーム ≈ 112BPM の16分)
+;   ベース        = 三角波。ノート間ポルタメント (64/F スライド) と
+;                   「鳴り始めは深く→浅く」のビブラートでレゾナンスのうねりを再現
+;   メロディ      = SQ1 (ソフトエンベロープ 9→6) + SQ2 の2ステップ遅れエコー
+;   コード進行    = Am → F → C → G の4小節 (ベース/メロディとも 64 ステップ)
+;   SFX           = ジャンプ/ショット/ミス (SQ1・SQ2), 敵ヒット (NOI), クリアファンファーレ
+; 16 ステップ/小節, 1ステップ = 8フレーム ≈ 112BPM の16分
 
 SQ1_VOL   = $4000
 SQ2_VOL   = $4004
@@ -25,81 +29,186 @@ SNARE_LEN  = $27        ; 625 バイト
 sound_init:
     lda #%00001111      ; SQ1 SQ2 TRI NOI 有効 (DMC はトリガ時にオン)
     sta APUSTATUS
-    lda #$30            ; 矩形波はミュート
+    lda #$30            ; 全チャンネルミュートから開始
     sta SQ1_VOL
     sta SQ2_VOL
-    sta NOI_VOL         ; ノイズ音量0
+    sta NOI_VOL
     lda #$80
-    sta TRI_LIN         ; 三角波停止
+    sta TRI_LIN
+    lda #$08            ; スイープ無効
+    sta $4001
+    sta $4005
     lda #0
     sta snd_tick
     sta snd_step
+    sta snd_bar
     sta hat_vol
     sta vib_phase
+    sta mel_vol
+    sta sfx1_type
+    sta sfx2_type
+    sta sfxn_t
+    sta bass_cur_lo
+    sta bass_cur_hi
     rts
 
+; ---- SFX トリガ API ----
+sfx_jump:
+    lda #1
+    sta sfx1_type
+    lda #0
+    sta sfx1_t
+    rts
+sfx_miss:
+    lda #2
+    sta sfx1_type
+    lda #0
+    sta sfx1_t
+    rts
+sfx_shot:
+    lda #1
+    sta sfx2_type
+    lda #0
+    sta sfx2_t
+    rts
+sfx_defeat:
+    lda #2
+    sta sfx2_type
+    lda #0
+    sta sfx2_t
+    rts
+sfx_hit:
+    lda #10
+    sta sfxn_t
+    rts
+
+; ================= メイン更新 (毎フレーム) =================
 update_sound:
-    ; ---- ステップ進行 ----
+    lda game_state
+    cmp #1
+    bne @not_fanfare
+    jmp fanfare_update  ; クリア中はファンファーレ専用
+@not_fanfare:
     lda snd_tick
-    bne @no_step
+    beq :+
+    jmp @no_step
+:   ; ---- 新しいステップ: pos = bar*16 + step ----
+    lda snd_bar
+    asl
+    asl
+    asl
+    asl
+    ora snd_step
+    tay                 ; Y = 曲内位置 (0-63)
     ldx snd_step
     lda drum_pat,x
-    tay
+    tax                 ; X = ドラムビット
     and #2              ; スネア (DMC は1本なのでキックより優先)
     beq @try_kick
     jsr trig_snare
     jmp @drums_done
 @try_kick:
-    tya
+    txa
     and #1
     beq @drums_done
     jsr trig_kick
 @drums_done:
-    tya
+    txa
     and #4              ; クローズハット
     beq :+
     lda #10
     sta hat_vol
-    lda #3              ; 速い減衰
+    lda #3
     sta hat_decay
     jsr trig_hat
-:   tya
+:   txa
     and #8              ; オープンハット
     beq :+
     lda #12
     sta hat_vol
-    lda #1              ; 遅い減衰
+    lda #1
     sta hat_decay
     jsr trig_hat
-:   ; ---- ベース (三角波) ----
-    lda bass_pat,x
+:   ; ---- ベース (303 風: ターゲットをセットしてスライドで向かう) ----
+    lda bass_pat,y
     beq @bass_off
     tax
+    lda #0
+    sta bass_age        ; 鳴り始め → 深いビブラート
     lda bass_lo_tbl,x
-    sta bass_per_lo
-    sta TRI_LO
+    sta bass_tgt_lo
     lda bass_hi_tbl,x
-    ora #%11111000      ; 長さカウンタ最大
-    sta TRI_HI
-    lda #$FF            ; リニアカウンタ制御+最大 → 鳴らし続ける
+    sta bass_tgt_hi
+    lda bass_cur_hi     ; 無音からの発音はスライドせず直接セット
+    ora bass_cur_lo
+    bne :+
+    lda bass_tgt_lo
+    sta bass_cur_lo
+    lda bass_tgt_hi
+    sta bass_cur_hi
+:   lda #$FF            ; リニアカウンタ制御+最大 → 鳴らし続ける
     sta TRI_LIN
-    jmp @no_step
+    jmp @melody
 @bass_off:
-    lda #$80            ; 消音
+    lda #$80            ; 消音 (cur は保持 → 次ノートへスライド)
     sta TRI_LIN
+@melody:
+    ; ---- メロディ (SQ1): コードトーンを小節ごとに移動 ----
+    lda melody_pat,y
+    beq @mel_rest
+    tax
+    lda #9              ; アタック音量 (9→6 へソフトエンベロープ)
+    sta mel_vol
+    lda pulse_lo_tbl,x
+    sta $4002
+    lda pulse_hi_tbl,x
+    ora #%11111000
+    sta $4003
+    jmp @echo
+@mel_rest:
+    lda #0
+    sta mel_vol
+@echo:
+    ; ---- エコー (SQ2): 2ステップ (16F) 遅れ・音量3 ----
+    tya
+    sec
+    sbc #2
+    and #63
+    tax
+    lda melody_pat,x
+    beq @echo_rest
+    tax
+    lda pulse_lo_tbl,x
+    sta $4006
+    lda pulse_hi_tbl,x
+    ora #%11111000
+    sta $4007
+    lda #%10110011      ; デューティ50% 固定音量3
+    sta SQ2_VOL
+    jmp @no_step
+@echo_rest:
+    lda #%10110000
+    sta SQ2_VOL
 @no_step:
+    ; ---- ステップ/小節カウンタ ----
     inc snd_tick
     lda snd_tick
     cmp #8
-    bcc :+
+    bcc @envelopes
     lda #0
     sta snd_tick
     inc snd_step
     lda snd_step
-    and #15
+    cmp #16
+    bcc @envelopes
+    lda #0
     sta snd_step
-:
-    ; ---- ハイハットのソフトウェアエンベロープ (毎フレーム減衰) ----
+    inc snd_bar
+    lda snd_bar
+    and #3              ; 4小節 (Am F C G) でループ
+    sta snd_bar
+@envelopes:
+    ; ---- ハイハットのエンベロープ ----
     lda hat_vol
     beq @hat_done
     sec
@@ -107,20 +216,267 @@ update_sound:
     bcs :+
     lda #0
 :   sta hat_vol
-    ora #$30            ; 長さ停止 + 固定音量モード
+    ora #$30
     sta NOI_VOL
 @hat_done:
-    ; ---- ベースのビブラート LFO (周期 32F ≈ 1.9Hz, 振幅 ±2) ----
+    ; ---- リードのソフトエンベロープ (9 → 6) ----
+    lda mel_vol
+    beq :+
+    cmp #7
+    bcc :+
+    lda snd_tick
+    and #1
+    bne :+
+    dec mel_vol
+:   lda mel_vol
+    ora #%10110000
+    sta SQ1_VOL
+    ; ---- 303 ベース: スライド + レゾナンス風ビブラート ----
+    jsr bass_update
+    ; ---- SFX オーバーレイ (BGM の上から上書き) ----
+    jmp sfx_overlay
+
+; ---- ベースのポルタメントとビブラート書き込み ----
+bass_update:
     inc vib_phase
+    inc bass_age
+    bne :+
+    dec bass_age        ; 255 で張り付き
+:   ; --- cur を tgt へ 64/F でスライド ---
+    lda bass_cur_lo
+    sec
+    sbc bass_tgt_lo
+    sta tmp
+    lda bass_cur_hi
+    sbc bass_tgt_hi
+    sta tmp2
+    ora tmp
+    beq @write          ; 到達済み
+    lda tmp2
+    bmi @slide_up
+    bne @dec64          ; 差 256 以上
+    lda tmp
+    cmp #65
+    bcs @dec64
+    jmp @snap
+@dec64:
+    lda bass_cur_lo
+    sec
+    sbc #64
+    sta bass_cur_lo
+    bcs @write
+    dec bass_cur_hi
+    jmp @write
+@slide_up:
+    lda bass_tgt_lo
+    sec
+    sbc bass_cur_lo
+    sta tmp
+    lda bass_tgt_hi
+    sbc bass_cur_hi
+    bne @inc64
+    lda tmp
+    cmp #65
+    bcs @inc64
+@snap:
+    lda bass_tgt_lo
+    sta bass_cur_lo
+    lda bass_tgt_hi
+    sta bass_cur_hi
+    jmp @write
+@inc64:
+    lda bass_cur_lo
+    clc
+    adc #64
+    sta bass_cur_lo
+    bcc @write
+    inc bass_cur_hi
+@write:
+    ; --- ビブラート: ノート直後 (12F) は深い ±6 → 以後 ±2。うねり=レゾナンス風 ---
     lda vib_phase
     lsr
     and #15
     tax
-    lda bass_per_lo
+    lda bass_age
+    cmp #12
+    bcs @shallow
+    lda vib_deep,x
+    jmp @have_vib
+@shallow:
+    lda vib_tbl,x
+@have_vib:
+    sta tmp
+    lda bass_cur_lo
     clc
-    adc vib_tbl,x
+    adc tmp
     sta TRI_LO
+    lda tmp
+    bmi @neg
+    lda bass_cur_hi
+    adc #0
+    jmp @sthi
+@neg:
+    lda bass_cur_hi
+    adc #$FF
+@sthi:
+    and #7
+    ora #%11111000
+    sta TRI_HI
     rts
+
+; ---- SFX オーバーレイ: BGM のレジスタを上書きして効果音を優先 ----
+sfx_overlay:
+    ; --- SQ1: ジャンプ (上昇スイープ) / ミス (下降3音) ---
+    lda sfx1_type
+    beq @sq2
+    ldx sfx1_t
+    cmp #2
+    beq @miss
+    cpx #14             ; ジャンプ: 14F の上昇スイープ
+    bcs @end1
+    txa
+    asl
+    asl
+    asl
+    sta tmp
+    lda #$C0
+    sec
+    sbc tmp
+    sta $4002
+    cpx #0
+    bne :+
+    lda #%11111000
+    sta $4003
+:   lda #%10110111      ; vol 7
+    sta SQ1_VOL
+    inc sfx1_t
+    jmp @sq2
+@miss:
+    cpx #40             ; ミス: E4 → D4 → A3 の下降 (40F)
+    bcs @end1
+    ldy #6              ; E4
+    cpx #13
+    bcc :+
+    ldy #5              ; D4
+    cpx #26
+    bcc :+
+    ldy #3              ; A3
+:   lda pulse_lo_tbl,y
+    sta $4002
+    cpx #0
+    bne :+
+    lda pulse_hi_tbl,y
+    ora #%11111000
+    sta $4003
+:   lda #%10111000      ; vol 8
+    sta SQ1_VOL
+    inc sfx1_t
+    jmp @sq2
+@end1:
+    lda #0
+    sta sfx1_type
+@sq2:
+    ; --- SQ2: ショット (下降ザップ) / 敵撃破 (上昇アルペジオ) ---
+    lda sfx2_type
+    beq @noi
+    ldx sfx2_t
+    cmp #2
+    beq @defeat
+    cpx #10             ; ショット: 10F の下降ザップ
+    bcs @end2
+    txa
+    asl
+    asl
+    clc
+    adc #$20
+    sta $4006
+    cpx #0
+    bne :+
+    lda #%11111000
+    sta $4007
+:   lda #%01110110      ; デューティ25% vol 6
+    sta SQ2_VOL
+    inc sfx2_t
+    jmp @noi
+@defeat:
+    cpx #18             ; 撃破: C5 → E5 → G5 (18F)
+    bcs @end2
+    ldy #10             ; C5
+    cpx #6
+    bcc :+
+    ldy #11             ; E5
+    cpx #12
+    bcc :+
+    ldy #12             ; G5
+:   lda pulse_lo_tbl,y
+    sta $4006
+    lda pulse_hi_tbl,y
+    ora #%11111000
+    sta $4007
+    lda #%01110111      ; デューティ25% vol 7
+    sta SQ2_VOL
+    inc sfx2_t
+    jmp @noi
+@end2:
+    lda #0
+    sta sfx2_type
+@noi:
+    ; --- ノイズ: 敵ヒット (中域バースト) ---
+    lda sfxn_t
+    beq @done
+    dec sfxn_t
+    lda #$06
+    sta NOI_FREQ
+    lda sfxn_t
+    ora #$30
+    sta NOI_VOL
+@done:
+    rts
+
+; ---- クリアファンファーレ (SQ1+SQ2, 他は消音) ----
+fanfare_update:
+    lda #$30
+    sta NOI_VOL
+    lda #$80
+    sta TRI_LIN
+    lda snd_tick
+    bne @adv
+    ldx snd_step
+    cpx #12
+    bcs @hold
+    lda fanfare_pat,x
+    beq @rest
+    tax
+    lda pulse_lo_tbl,x
+    sta $4002
+    sta $4006
+    lda pulse_hi_tbl,x
+    ora #%11111000
+    sta $4003
+    sta $4007
+    lda #%10111100      ; SQ1 vol 12
+    sta SQ1_VOL
+    lda #%01110100      ; SQ2 デューティ25% vol 4
+    sta SQ2_VOL
+    jmp @adv
+@rest:
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+@adv:
+    inc snd_tick
+    lda snd_tick
+    cmp #6              ; ファンファーレは少し速いテンポ
+    bcc :+
+    lda #0
+    sta snd_tick
+    inc snd_step
+:   rts
+@hold:
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+    jmp @adv
 
 trig_kick:
     lda #$0D            ; 21307Hz, ループなし
@@ -156,12 +512,29 @@ trig_hat:
 drum_pat:
     .byte $05,$04,$08,$04, $07,$04,$08,$04
     .byte $05,$04,$08,$04, $07,$04,$08,$04
-; ノート番号 (0=休符, 1=G1 2=A1 3=C2 4=D2 5=E2)
+; ---- コード進行 Am → F → C → G (4小節 x 16ステップ) ----
+; ベース (0=休符 1=F1 2=G1 3=A1 4=C2 5=D2 6=E2 7=F2 8=G2 9=A2)
 bass_pat:
-    .byte 2,0,2,0, 2,0,4,3, 2,0,2,0, 5,4,3,0
+    .byte 3,0,9,3, 0,3,9,0, 3,3,0,9, 3,0,9,9   ; Am
+    .byte 1,0,7,1, 0,1,7,0, 1,1,0,7, 1,0,7,7   ; F
+    .byte 4,0,8,4, 0,4,8,0, 4,4,0,8, 4,0,8,8   ; C
+    .byte 2,0,8,2, 0,2,8,0, 2,2,0,8, 2,0,8,4   ; G
+; メロディ (0=休符 1=F3 2=G3 3=A3 4=C4 5=D4 6=E4 7=F4 8=G4 9=A4 10=C5 11=E5 12=G5)
+melody_pat:
+    .byte 3,0,3,4, 6,0,6,5, 4,5,6,0, 8,0,6,5   ; Am
+    .byte 1,0,1,4, 7,0,7,6, 4,0,1,4, 7,0,6,4   ; F
+    .byte 4,0,4,6, 8,0,8,10, 10,0,8,6, 4,6,8,0 ; C
+    .byte 2,0,2,5, 8,0,8,11, 8,0,5,2, 6,5,4,5  ; G
+; ファンファーレ: C4 E4 G4 C5 . G4 C5 C5
+fanfare_pat:
+    .byte 4,6,8,10, 0,8,10,10, 0,0,0,0
 ; 三角波の周期 (NTSC: 1789773/(32*f)-1)
-bass_lo_tbl: .byte 0,$74,$F8,$56,$F8,$A5
-bass_hi_tbl: .byte 0,$04,$03,$03,$02,$02
-; ビブラート: 2*sin(2πi/16)
-vib_tbl: .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
+bass_lo_tbl: .byte 0,$00,$74,$F8,$56,$F8,$A5,$80,$39,$FB
+bass_hi_tbl: .byte 0,$05,$04,$03,$03,$02,$02,$02,$02,$01
+; パルス波の周期 (NTSC: 1789773/(16*f)-1)
+pulse_lo_tbl: .byte 0,$80,$39,$FB,$AA,$7C,$52,$3F,$1C,$FD,$D5,$A9,$8E
+pulse_hi_tbl: .byte 0,  2,  2,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0
+; ビブラート: 浅 (±2) と 深 (±6, ノート直後のレゾナンス風)
+vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
+vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
 .segment "CODE"

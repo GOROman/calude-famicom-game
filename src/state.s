@@ -1,13 +1,58 @@
 ; ゲーム状態: 0=プレイ中 1=ステージクリア 2=死亡演出 3=ゲームオーバー
-; HUD (残機表示) と状態テキスト (「ステージクリア!」 / GAMEOVER) の描画も担当
+; ステージ進行 (1-1〜1-4)、HUD (残機/ステージ番号)、状態テキストの描画も担当
 
 STATE_TIME_CLEAR = 240
 STATE_TIME_DEATH = 60
 STATE_TIME_OVER  = 240
-TEXT_OAM = 84           ; スプライト 21-28 (8文字)
-HUD_OAM  = 120          ; スプライト 30,31 (残機アイコン+数字)
+TEXT_OAM = 84           ; スプライト 21-32 (最大12文字)
+HUD_OAM  = 132          ; スプライト 33-37 (残機 + ステージ番号)
+NUM_STAGES = 4
 
 .segment "CODE"
+
+; ---- ステージ開始: レベル/プレイヤー/敵を初期化して描画を再開 ----
+; 死亡リスポーンもここを通る (ネームテーブルを描き直さないと
+; 死んだ地点の背景がリングに残り、見た目と当たり判定がズレるバグになる)
+start_stage:
+    lda #0              ; NMI と描画を止めて安全に再構築
+    sta PPUCTRL
+    sta PPUMASK
+    sta nmi_ready
+    ; level_ptr = level_maps + current_stage * 64
+    lda #<level_maps
+    sta level_ptr
+    lda #>level_maps
+    sta level_ptr+1
+    ldx current_stage
+    beq @ptr_done
+@ptr_loop:
+    lda level_ptr
+    clc
+    adc #64
+    sta level_ptr
+    bcc :+
+    inc level_ptr+1
+:   dex
+    bne @ptr_loop
+@ptr_done:
+    jsr ppu_init        ; パレット + ネームテーブルクリア
+    jsr level_init      ; 最初の2画面分を描画
+    jsr player_init
+    jsr enemy_init
+    lda #0
+    sta game_state
+    sta scroll_lo
+    sta scroll_hi
+    sta arrow_flag
+    sta arrow_flag+1
+    sta item_flag
+    sta item_flag+1
+    sta fx_timer
+    lda #%10000000      ; NMI 再開
+    sta PPUCTRL
+    lda #%00011110      ; BG + スプライト表示
+    sta PPUMASK
+    rts
 
 ; ---- 一番右 (WORLD_X_MAX) まで行ったらステージクリア! ----
 check_clear:
@@ -21,6 +66,9 @@ check_clear:
     sta game_state
     lda #STATE_TIME_CLEAR
     sta state_timer
+    lda #0              ; ファンファーレを頭から
+    sta snd_tick
+    sta snd_step
 @no:
     rts
 
@@ -33,6 +81,7 @@ player_die_start:
     lda #0              ; 飛んでいる矢は消す
     sta arrow_flag
     sta arrow_flag+1
+    jsr sfx_miss
     rts
 
 ; ---- 演出の進行 ----
@@ -45,41 +94,72 @@ update_state:
     lda game_state
     cmp #2
     beq @respawn
-    jmp reset           ; クリア/ゲームオーバー → 最初からやり直し
+    cmp #3
+    beq @to_reset
+    ; クリア → 次のステージへ (1-4 の次は 1-1 に周回)
+    inc current_stage
+    lda current_stage
+    cmp #NUM_STAGES
+    bcc :+
+    lda #0
+    sta current_stage
+:   jmp start_stage
 @respawn:
     dec lives
     beq @game_over
-    jsr player_init     ; 残機があればスタート地点から再開
-    lda #0
-    sta game_state
+    lda #0              ; やられるとパワー矢と無敵は失う
     sta weapon_level
     sta star_timer
-    rts
+    jmp start_stage     ; ステージを最初から (背景もリセット = 判定ズレ防止)
 @game_over:
     lda #3
     sta game_state
     lda #STATE_TIME_OVER
     sta state_timer
     rts
+@to_reset:
+    jmp reset
 
-; ---- HUD: 残機 (狩人の頭アイコン + 数字) と状態テキスト ----
+; ---- HUD: 残機 + ステージ番号 + 状態テキスト ----
 draw_hud:
-    lda #15             ; 左上に残機表示
+    ; 残機 (左上: 狩人アイコン + 数字)
+    lda #15
     sta OAM_BUF+HUD_OAM
     sta OAM_BUF+HUD_OAM+4
+    sta OAM_BUF+HUD_OAM+8
+    sta OAM_BUF+HUD_OAM+12
+    sta OAM_BUF+HUD_OAM+16
     lda #$01            ; 狩人の頭タイル
     sta OAM_BUF+HUD_OAM+1
     lda lives
     clc
     adc #$90            ; '0' のタイル ($80 + $30-$20)
     sta OAM_BUF+HUD_OAM+5
+    ; ステージ番号 (右上: "1-N")
+    lda #$91            ; '1'
+    sta OAM_BUF+HUD_OAM+9
+    lda #$8D            ; '-'
+    sta OAM_BUF+HUD_OAM+13
+    lda current_stage
+    clc
+    adc #$91            ; '1'〜'4'
+    sta OAM_BUF+HUD_OAM+17
     lda #0
     sta OAM_BUF+HUD_OAM+2
     sta OAM_BUF+HUD_OAM+6
+    sta OAM_BUF+HUD_OAM+10
+    sta OAM_BUF+HUD_OAM+14
+    sta OAM_BUF+HUD_OAM+18
     lda #8
     sta OAM_BUF+HUD_OAM+3
     lda #18
     sta OAM_BUF+HUD_OAM+7
+    lda #216
+    sta OAM_BUF+HUD_OAM+11
+    lda #224
+    sta OAM_BUF+HUD_OAM+15
+    lda #232
+    sta OAM_BUF+HUD_OAM+19
 
     ; 状態テキスト
     lda game_state
@@ -87,49 +167,71 @@ draw_hud:
     beq @clear_text
     cmp #3
     beq @over_text
-    ldx #28             ; 非表示
+    ldx #0              ; 非表示 (12スプライト分)
     lda #$FF
 :   sta OAM_BUF+TEXT_OAM,x
-    dex
-    dex
-    dex
-    dex
-    bpl :-
+    inx
+    inx
+    inx
+    inx
+    cpx #48
+    bcc :-
     rts
 @clear_text:
-    ldx #0              ; text_tiles の先頭 (ステージクリア!)
-    beq @text
+    lda #<clear_txt
+    sta text_ptr
+    lda #>clear_txt
+    sta text_ptr+1
+    jmp draw_text
 @over_text:
-    ldx #8              ; GAMEOVER
-@text:
-    ldy #TEXT_OAM
-@tloop:
-    lda #100            ; 画面中央あたり
-    sta OAM_BUF,y
-    iny
-    lda text_tiles,x
-    sta OAM_BUF,y
-    iny
-    lda #1              ; パレット1 (白)
-    sta OAM_BUF,y
-    iny
-    txa
-    and #7
-    asl
-    asl
-    asl
-    clc
-    adc #96             ; X = 96 + 文字番号*8
-    sta OAM_BUF,y
+    lda #<gameover_txt
+    sta text_ptr
+    lda #>gameover_txt
+    sta text_ptr+1
+; ---- テキスト描画: (text_ptr) = y,tile,x の3バイト組, 終端 y=0 ----
+draw_text:
+    ldy #0              ; テーブル位置
+    ldx #0              ; OAM 相対位置
+@loop:
+    lda (text_ptr),y
+    beq @fill_rest
+    sta OAM_BUF+TEXT_OAM,x  ; Y
     iny
     inx
-    txa
-    and #7
-    bne @tloop
+    lda (text_ptr),y
+    sta OAM_BUF+TEXT_OAM,x  ; タイル
+    iny
+    inx
+    lda #1                  ; パレット1 (白)
+    sta OAM_BUF+TEXT_OAM,x
+    inx
+    lda (text_ptr),y
+    sta OAM_BUF+TEXT_OAM,x  ; X
+    iny
+    inx
+    cpx #48
+    bcc @loop
     rts
+@fill_rest:
+    lda #$FF
+:   cpx #48
+    bcs :+
+    sta OAM_BUF+TEXT_OAM,x
+    inx
+    inx
+    inx
+    inx
+    bne :-
+:   rts
 
 .segment "RODATA"
-text_tiles:
-    .byte $62,$63,$64,$65,$66,$67,$68,$69   ; ステージクリア!
-    .byte $A7,$A1,$AD,$A5,$AF,$B6,$A5,$B2   ; GAMEOVER (ASCII フォント)
+; ASCII フォントタイル = $80 + (文字コード - $20)
+clear_txt:                              ; STAGE CLEAR! (2行組)
+    .byte 92,$B3,108, 92,$B4,116, 92,$A1,124, 92,$A7,132, 92,$A5,140
+    .byte 106,$A3,104, 106,$AC,112, 106,$A5,120, 106,$A1,128, 106,$B2,136, 106,$81,144
+    .byte 0
+gameover_txt:                           ; GAMEOVER (1行, 8スプライト制限内)
+    .byte 100,$A7,96, 100,$A1,104, 100,$AD,112, 100,$A5,120
+    .byte 100,$AF,128, 100,$B6,136, 100,$A5,144, 100,$B2,152
+    .byte 0
 .segment "CODE"
