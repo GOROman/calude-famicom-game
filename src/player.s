@@ -2,7 +2,6 @@
 
 PLAYER_SPEED    = 2         ; 横移動 px/フレーム
 PLAYER_GROUND_Y = 184       ; 接地時のスプライト上端 Y (地面ライン = 200)
-PLAYER_X_MAX    = 240 - 16  ; 右端クランプ
 
 ; スーパーマリオ風可変ジャンプ (SMB の JumpMForceData/FallMForceData 相当)
 JUMP_VEL_HI     = $FC       ; ジャンプ初速 -4.0 px/フレーム (SMB PlayerYSpdData)
@@ -12,8 +11,10 @@ MAX_FALL_SPEED  = 4         ; 落下速度の上限 px/フレーム (SMB ImposeG
 
 .segment "CODE"
 player_init:
-    lda #120
-    sta player_x
+    lda #120            ; ワールド X = 120 (画面中央スタート)
+    sta world_x_lo
+    lda #0
+    sta world_x_hi
     lda #PLAYER_GROUND_Y
     sta player_y
     lda #1
@@ -21,31 +22,45 @@ player_init:
     rts
 
 update_player:
-    ; ---- 左右移動 ----
+    ; ---- 左右移動 (16bit ワールド座標) ----
     lda buttons
     and #BTN_LEFT
     beq @not_left
     lda #1
     sta facing
-    lda player_x
+    lda world_x_lo
     sec
     sbc #PLAYER_SPEED
-    bcs :+
-    lda #0              ; 左端でクランプ
-:   sta player_x
+    sta world_x_lo
+    lda world_x_hi
+    sbc #0
+    sta world_x_hi
+    bpl @not_left
+    lda #0              ; 左端 (world 0) でクランプ
+    sta world_x_lo
+    sta world_x_hi
 @not_left:
     lda buttons
     and #BTN_RIGHT
     beq @not_right
     lda #0
     sta facing
-    lda player_x
+    lda world_x_lo
     clc
     adc #PLAYER_SPEED
-    cmp #PLAYER_X_MAX
-    bcc :+
-    lda #PLAYER_X_MAX   ; 右端でクランプ
-:   sta player_x
+    sta world_x_lo
+    lda world_x_hi
+    adc #0
+    sta world_x_hi
+    cmp #>WORLD_X_MAX   ; 右端クランプ
+    bcc @not_right
+    lda world_x_lo
+    cmp #<WORLD_X_MAX
+    bcc @not_right
+    lda #<WORLD_X_MAX
+    sta world_x_lo
+    lda #>WORLD_X_MAX
+    sta world_x_hi
 @not_right:
 
     ; ---- ジャンプ開始 (A の立ち上がりエッジのみ。押しっぱなし再ジャンプ禁止) ----
@@ -113,6 +128,10 @@ update_player:
 
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
 draw_player:
+    lda world_x_lo      ; 画面 X = ワールド X - スクロール X
+    sec
+    sbc scroll_lo
+    sta player_x
     lda facing
     beq :+
     lda #$40            ; 左向きは水平反転属性

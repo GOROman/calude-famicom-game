@@ -30,6 +30,18 @@ vel_y_hi:     .res 1    ; Y 速度 整数部 (符号付き)
 on_ground:    .res 1    ; 1=接地中
 facing:       .res 1    ; 0=右向き 1=左向き
 tmp_attr:     .res 1
+world_x_lo:   .res 1    ; プレイヤーのワールド X (16bit)
+world_x_hi:   .res 1
+scroll_lo:    .res 1    ; カメラスクロール X (16bit)
+scroll_hi:    .res 1
+prev_col:     .res 1    ; 前フレームの左端列番号 (ストリーミング検出用)
+col_pending:  .res 1    ; NMI で転送する列番号 ($FF=なし)
+col_ppu_hi:   .res 1    ; 転送先 PPU アドレス
+col_ppu_lo:   .res 1
+tmp:          .res 1
+
+.segment "BSS"
+col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
 
 .segment "CODE"
 reset:
@@ -71,6 +83,7 @@ reset:
     bpl :-
 
     jsr ppu_init        ; パレット設定 + ネームテーブルクリア
+    jsr level_init      ; 最初の2画面分 (64列) を描画
     jsr player_init
 
     lda #%10000000      ; NMI 有効, BG/SP ともパターンテーブル0
@@ -81,6 +94,7 @@ reset:
 main_loop:
     jsr read_controller
     jsr update_player
+    jsr update_camera
     jsr draw_player
     lda #1
     sta nmi_ready
@@ -101,10 +115,22 @@ nmi:
     sta OAMADDR
     lda #>OAM_BUF
     sta OAMDMA
-    lda #%10000000
+    ; キューされた列があれば転送 (縦書き = アドレス+32 モード)
+    lda col_pending
+    cmp #$FF
+    beq @no_col
+    lda #%10000100
     sta PPUCTRL
-    lda #$00
+    jsr write_column
+@no_col:
+    ; スクロールとネームテーブル選択 (PPUADDR を触った後に必ず再設定)
+    lda scroll_hi
+    and #1
+    ora #%10000000
+    sta PPUCTRL
+    lda scroll_lo
     sta PPUSCROLL
+    lda #$00
     sta PPUSCROLL
     sta nmi_ready
 @skip:
@@ -119,6 +145,7 @@ irq:
 .include "ppu.s"
 .include "controller.s"
 .include "player.s"
+.include "level.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq

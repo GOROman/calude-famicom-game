@@ -32,27 +32,7 @@ ppu_init:
     bne @clr
     dex
     bne @clr
-
-    ; 地面: タイル行25 (y=200-207) に草, 行26-29 に土
-    ; $2000 + 25*32 = $2320
-    bit PPUSTATUS
-    lda #$23
-    sta PPUADDR
-    lda #$20
-    sta PPUADDR
-    lda #$05            ; 草タイル x32
-    ldx #32
-@grass:
-    sta PPUDATA
-    dex
-    bne @grass
-    lda #$06            ; 土タイル x128 (4行)
-    ldx #128
-@dirt:
-    sta PPUDATA
-    dex
-    bne @dirt
-    rts
+    rts                 ; 地面/ブロックは level_init の列描画が担当
 
 .segment "RODATA"
 palette_data:

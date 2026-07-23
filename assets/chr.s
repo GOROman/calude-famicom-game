@@ -25,7 +25,11 @@
     .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
     .byte $FF,$EF,$FE,$7F,$FB,$DF,$FF,$F7
 
-; tile $07-$0F: 未使用 (行頭合わせのパディング)
-    .res 9*16, $00
+; tile $07: block (レンガブロック: 茶ベース+暗色の目地)
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $EE,$EE,$00,$BB,$BB,$00,$EE,$00
+
+; tile $08-$0F: 未使用 (行頭合わせのパディング)
+    .res 8*16, $00
 ; tile $10-$4F: 隠しメッセージ
 .include "easteregg.s"
