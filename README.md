@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/11-ketsuiman.nes)** (最新版: roms/11-ketsuiman.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/12-hit-anim.nes)** (最新版: roms/12-hit-anim.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -88,6 +88,9 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 
 - [Step 1: 空が青くなった日](docs/diary/step1.md)
 - [Step 2: 世界は横に長い](docs/diary/step2.md)
+- [Step 3: ブロックの上に立つということ](docs/diary/step3.md)
+- [番外編: URLがカセットになる日 (ステージエディタ)](docs/diary/editor.md)
+- [Step 4: 決意マン、行動に倒れる](docs/diary/step4.md)
 
 ## License
 

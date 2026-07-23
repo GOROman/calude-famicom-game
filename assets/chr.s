@@ -87,3 +87,23 @@
 ; tile $57: ketsuiman BR
     .byte $F0,$F0,$E0,$00,$00,$00,$00,$00
     .byte $FF,$7F,$FE,$FC,$F8,$F0,$C0,$80
+
+; ---- 決意マン ダメージ顔 (X目+口開け) と ヒットエフェクト (hurtfx.py で生成) ----
+; tile $58: ketsuiman hurt TL
+    .byte $00,$00,$00,$03,$07,$0F,$0F,$0F
+    .byte $01,$03,$07,$0F,$1F,$3F,$7B,$FD
+; tile $59: ketsuiman hurt TR
+    .byte $00,$00,$00,$C0,$E0,$F0,$F0,$F0
+    .byte $80,$C0,$E0,$F0,$F8,$FC,$DE,$BF
+; tile $5A: ketsuiman hurt BL
+    .byte $0F,$0F,$07,$00,$00,$00,$00,$00
+    .byte $FF,$FC,$7E,$3F,$1F,$0F,$03,$01
+; tile $5B: ketsuiman hurt BR
+    .byte $F0,$F0,$E0,$00,$00,$00,$00,$00
+    .byte $FF,$3F,$7E,$FC,$F8,$F0,$C0,$80
+; tile $5C: hit fx small (小スパーク)
+    .byte $00,$10,$28,$44,$28,$10,$00,$00
+    .byte $00,$10,$38,$6C,$38,$10,$00,$00
+; tile $5D: hit fx big (炸裂バースト)
+    .byte $99,$42,$00,$81,$81,$00,$42,$99
+    .byte $99,$5A,$24,$C3,$C3,$24,$5A,$99

@@ -24,14 +24,32 @@ enemy_init:
 
 update_enemies:
     inc frame_count
-    ; ---- 移動 (2フレームに1px) ----
+    ; ---- ヒットエフェクトのカウントダウン ----
+    lda fx_timer
+    beq :+
+    dec fx_timer
+:   ; ---- 消失アニメのカウントダウン (flag=2 → 0) ----
+    ldx #2
+@dying_loop:
+    lda enemy_flag,x
+    cmp #2
+    bne @dying_next
+    dec enemy_timer,x
+    bne @dying_next
+    lda #0
+    sta enemy_flag,x
+@dying_next:
+    dex
+    bpl @dying_loop
+    ; ---- 移動 (2フレームに1px, 生存中のみ) ----
     lda frame_count
     and #1
     bne @collisions
     ldx #2
 @move_loop:
     lda enemy_flag,x
-    beq @move_next
+    cmp #1
+    bne @move_next
     lda enemy_dir,x
     bne @move_left
     inc enemy_xlo,x     ; 右へ 1px
@@ -78,11 +96,12 @@ update_enemies:
     bpl @move_loop
 
 @collisions:
-    ; ---- 矢とプレイヤーの当たり判定 ----
+    ; ---- 矢とプレイヤーの当たり判定 (生存中のみ) ----
     ldx #2
 @col_loop:
     lda enemy_flag,x
-    bne :+
+    cmp #1
+    beq :+
     jmp @col_next
 :   ; --- 矢 (2スロット) ---
     ldy #0
@@ -111,9 +130,10 @@ update_enemies:
     lda tmp
     cmp #23
     bcs @arrow_next
-    lda #0              ; 命中! 矢も敵も消える
+    lda #0              ; 命中! 矢は消え、敵はダメージアニメへ
     sta arrow_flag,y
-    sta enemy_flag,x
+    lda #188
+    jsr kill_enemy
     jmp @col_next
 @arrow_next:
     iny
@@ -148,8 +168,9 @@ update_enemies:
     lda player_y
     cmp #177
     bcs @player_die     ; 深くめり込んでいる → やられ
-    lda #0              ; 踏みつけ! 決意マンは行動に倒れた
-    sta enemy_flag,x
+    lda #180            ; 踏みつけ! 決意マンは行動に倒れた
+    jsr kill_enemy
+    lda #0
     sta vel_y_lo
     lda #$FD            ; プレイヤーは -3.0 でバウンド
     sta vel_y_hi
@@ -166,6 +187,25 @@ update_enemies:
     bmi @done
     jmp @col_loop
 @done:
+    rts
+
+; ---- 敵を倒す: A = エフェクト Y, X = 敵スロット ----
+; ダメージアニメ (28F: 前半ダメージ顔 → 後半点滅消失) とヒットエフェクトを起動
+kill_enemy:
+    sta fx_y
+    lda #2
+    sta enemy_flag,x
+    lda #28
+    sta enemy_timer,x
+    lda #12
+    sta fx_timer
+    lda enemy_xlo,x     ; エフェクトは敵の中央
+    clc
+    adc #4
+    sta fx_xlo
+    lda enemy_xhi,x
+    adc #0
+    sta fx_xhi
     rts
 
 ; ---- 敵の横衝突: tmp/tmp2 = 前縁 X。C=1 → 壁 (X レジスタは保存) ----
@@ -197,6 +237,20 @@ draw_enemies:
 @loop:
     lda enemy_flag,x
     beq @hide
+    cmp #2
+    bne @alive_tiles
+    lda enemy_timer,x   ; 消失アニメ: 後半 (残り12F以下) は点滅
+    cmp #13
+    bcs @hurt_tiles
+    and #2
+    bne @hide
+@hurt_tiles:
+    lda #$58            ; ダメージ顔 (X目+口開け)
+    bne @set_base       ; 常に分岐
+@alive_tiles:
+    lda #$54
+@set_base:
+    sta tmp3
     lda enemy_xlo,x     ; 画面 X (スクロール圏外なら非表示)
     sec
     sbc scroll_lo
@@ -210,13 +264,14 @@ draw_enemies:
     lda #ENEMY_Y + 8
     sta OAM_BUF+8,y     ; 下段 Y
     sta OAM_BUF+12,y
-    lda #$54
+    lda tmp3
     sta OAM_BUF+1,y
-    lda #$55
+    clc
+    adc #1
     sta OAM_BUF+5,y
-    lda #$56
+    adc #1
     sta OAM_BUF+9,y
-    lda #$57
+    adc #1
     sta OAM_BUF+13,y
     lda #ENEMY_ATTR
     sta OAM_BUF+2,y
@@ -244,7 +299,38 @@ draw_enemies:
     tay
     inx
     cpx #3
-    bne @loop
+    beq @fx
+    jmp @loop
+@fx:
+    ; ---- ヒットエフェクト (スプライト18 = OAM+72): 小→大の炸裂 ----
+    lda fx_timer
+    beq @fx_hide
+    lda fx_xlo
+    sec
+    sbc scroll_lo
+    sta tmp
+    lda fx_xhi
+    sbc scroll_hi
+    bne @fx_hide
+    lda fx_y
+    sta OAM_BUF+72
+    lda fx_timer
+    cmp #7
+    bcs @fx_small
+    lda #$5D            ; 後半: 大バースト
+    bne @fx_tile
+@fx_small:
+    lda #$5C            ; 前半: 小スパーク
+@fx_tile:
+    sta OAM_BUF+73
+    lda #ENEMY_ATTR
+    sta OAM_BUF+74
+    lda tmp
+    sta OAM_BUF+75
+    rts
+@fx_hide:
+    lda #$FF
+    sta OAM_BUF+72
     rts
 
 .segment "RODATA"

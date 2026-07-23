@@ -54,6 +54,11 @@ enemy_flag:   .res 3    ; 決意マン: 0=いない 1=生存
 enemy_xlo:    .res 3    ; ワールド X (16bit)
 enemy_xhi:    .res 3
 enemy_dir:    .res 3    ; 0=右へ 1=左へ
+enemy_timer:  .res 3    ; ダメージ/消失アニメの残りフレーム
+fx_timer:     .res 1    ; ヒットエフェクトの残りフレーム
+fx_xlo:       .res 1    ; エフェクトのワールド X (16bit)
+fx_xhi:       .res 1
+fx_y:         .res 1
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
