@@ -3,8 +3,12 @@
 PLAYER_SPEED    = 2         ; 横移動 px/フレーム
 PLAYER_GROUND_Y = 184       ; 接地時のスプライト上端 Y (地面ライン = 200)
 PLAYER_X_MAX    = 240 - 16  ; 右端クランプ
-JUMP_VEL_HI     = $FB       ; ジャンプ初速 -5.0 px/フレーム (上位バイト)
-GRAVITY_LO      = $40       ; 重力 0.25 px/フレーム^2
+
+; スーパーマリオ風可変ジャンプ (SMB の JumpMForceData/FallMForceData 相当)
+JUMP_VEL_HI     = $FC       ; ジャンプ初速 -4.0 px/フレーム (SMB PlayerYSpdData)
+GRAV_HOLD       = $20       ; 上昇中に A 押下中の弱い重力 (SMB JumpMForceData)
+GRAV_FALL       = $70       ; A 解放後/下降中の強い重力 (SMB FallMForceData)
+MAX_FALL_SPEED  = 4         ; 落下速度の上限 px/フレーム (SMB ImposeGravity)
 
 .segment "CODE"
 player_init:
@@ -44,12 +48,15 @@ update_player:
 :   sta player_x
 @not_right:
 
-    ; ---- ジャンプ開始 ----
+    ; ---- ジャンプ開始 (A の立ち上がりエッジのみ。押しっぱなし再ジャンプ禁止) ----
     lda on_ground
     beq @airborne
     lda buttons
     and #BTN_A
     beq @done           ; 接地中で A 押下なし → 縦方向の処理なし
+    lda prev_buttons
+    and #BTN_A
+    bne @done           ; 前フレームから押しっぱなし → ジャンプしない
     lda #0
     sta on_ground
     sta vel_y_lo
@@ -57,14 +64,31 @@ update_player:
     sta vel_y_hi
 
 @airborne:
-    ; 速度 += 重力
-    lda vel_y_lo
+    ; 重力選択: 上昇中かつ A 押下中だけ弱い重力 → 押下時間でジャンプ高が変わる
+    ldy #GRAV_FALL
+    lda vel_y_hi
+    bpl @apply_grav     ; 下降中 (速度 >= 0) は常に強い重力
+    lda buttons
+    and #BTN_A
+    beq @apply_grav     ; A を離したら強い重力
+    ldy #GRAV_HOLD
+@apply_grav:
+    tya                 ; 速度 += 重力
     clc
-    adc #GRAVITY_LO
+    adc vel_y_lo
     sta vel_y_lo
     lda vel_y_hi
     adc #0
     sta vel_y_hi
+    ; 落下速度の上限
+    bmi @no_cap         ; 上昇中はそのまま
+    cmp #MAX_FALL_SPEED
+    bcc @no_cap
+    lda #MAX_FALL_SPEED
+    sta vel_y_hi
+    lda #0
+    sta vel_y_lo
+@no_cap:
     ; 座標 += 速度 (8.8 固定小数点)
     lda player_y_sub
     clc

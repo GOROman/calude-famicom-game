@@ -8,6 +8,8 @@ BTN_RIGHT  = %00000001
 
 .segment "CODE"
 read_controller:
+    lda buttons
+    sta prev_buttons
     lda #$01
     sta JOY1            ; ストローブ開始
     sta buttons         ; リングカウンタ: この1が繰り上がったら8回読み終わり

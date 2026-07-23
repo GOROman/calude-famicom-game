@@ -21,6 +21,7 @@ OAM_BUF   = $0200       ; スプライト用シャドウ OAM (256バイト)
 .segment "ZEROPAGE"
 nmi_ready:    .res 1    ; 1=描画データ準備完了 (NMI が 0 に戻す)
 buttons:      .res 1    ; A B Select Start Up Down Left Right (bit7..bit0)
+prev_buttons: .res 1    ; 前フレームの buttons (エッジ検出用)
 player_x:     .res 1    ; X 座標 (スプライト左上)
 player_y:     .res 1    ; Y 座標 整数部
 player_y_sub: .res 1    ; Y 座標 小数部 (8.8 固定小数点)
