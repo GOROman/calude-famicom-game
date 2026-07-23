@@ -44,6 +44,9 @@ arrow_flag:   .res 2    ; 矢: 0=なし 1=右 2=左 (最大2発)
 arrow_xlo:    .res 2    ; 矢のワールド X (16bit)
 arrow_xhi:    .res 2
 arrow_y:      .res 2
+spr_tile_buf: .res 4    ; 表示するタイル4枚 (facing 反映済み: TL,TR,BL,BR)
+anim_timer:   .res 1    ; 歩きアニメ用カウンタ
+attack_timer: .res 1    ; 攻撃ポーズの残りフレーム
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)

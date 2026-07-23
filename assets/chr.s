@@ -34,7 +34,27 @@
     .byte $00,$00,$00,$04,$FF,$04,$00,$00
     .byte $00,$00,$00,$00,$FC,$00,$00,$00
 
-; tile $09-$0F: 未使用 (行頭合わせのパディング)
-    .res 7*16, $00
+; ---- アニメポーズ (scratchpad の poses.py で生成) ----
+; tile $09: walk2 bottom-left (足を開いた歩きポーズ)
+    .byte $20,$20,$10,$0C,$12,$24,$38,$00
+    .byte $1F,$1F,$0F,$03,$0C,$18,$00,$00
+; tile $0A: walk2 bottom-right
+    .byte $07,$07,$0B,$33,$4B,$25,$1C,$00
+    .byte $FA,$FA,$F2,$C2,$32,$18,$00,$00
+; tile $0B: jump bottom-left (足をたたんだ空中ポーズ)
+    .byte $20,$20,$10,$0F,$13,$13,$0C,$00
+    .byte $1F,$1F,$0F,$00,$0C,$0C,$00,$00
+; tile $0C: jump bottom-right
+    .byte $07,$07,$0B,$C3,$23,$22,$C0,$00
+    .byte $FA,$FA,$F2,$02,$C2,$C0,$00,$00
+; tile $0D: attack top-left (弓を引くポーズ)
+    .byte $07,$08,$10,$17,$17,$17,$08,$10
+    .byte $00,$07,$0F,$0F,$0D,$0F,$07,$0F
+; tile $0E: attack top-right
+    .byte $E0,$10,$08,$EA,$ED,$ED,$19,$3F
+    .byte $00,$E0,$F0,$F0,$B4,$F4,$E8,$D8
+
+; tile $0F: 未使用 (行頭合わせのパディング)
+    .res 16, $00
 ; tile $10-$4F: 隠しメッセージ
 .include "easteregg.s"

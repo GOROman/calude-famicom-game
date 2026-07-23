@@ -135,11 +135,63 @@ update_player:
     rts
 
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
+; ポーズ選択: 上半身 = 通常/攻撃(弓を引く), 下半身 = 立ち/歩き2コマ/ジャンプ
 draw_player:
     lda world_x_lo      ; 画面 X = ワールド X - スクロール X
     sec
     sbc scroll_lo
     sta player_x
+
+    ; ---- 上半身: 攻撃中は弓を引くポーズ ----
+    lda attack_timer
+    beq @top_normal
+    dec attack_timer
+    lda #$0D
+    ldx #$0E
+    bne @store_top      ; 常に分岐
+@top_normal:
+    lda #$01
+    ldx #$02
+@store_top:
+    ldy facing
+    beq :+
+    sta spr_tile_buf+1  ; 左向きは列を入れ替え (描画時に水平反転)
+    stx spr_tile_buf
+    bne @bottom         ; X は常に非0
+:   sta spr_tile_buf
+    stx spr_tile_buf+1
+
+@bottom:
+    ; ---- 下半身: 空中=ジャンプ / 歩行中=2コマアニメ / 停止=立ち ----
+    lda on_ground
+    bne @grounded
+    lda #$0B            ; ジャンプポーズ
+    ldx #$0C
+    bne @store_bottom
+@grounded:
+    lda buttons
+    and #BTN_LEFT | BTN_RIGHT
+    beq @stand
+    inc anim_timer
+    lda anim_timer
+    and #%00001000      ; 8フレームごとに足を切替
+    beq @stand
+    lda #$09            ; 歩きポーズ (足を開く)
+    ldx #$0A
+    bne @store_bottom
+@stand:
+    lda #$03
+    ldx #$04
+@store_bottom:
+    ldy facing
+    beq :+
+    sta spr_tile_buf+3
+    stx spr_tile_buf+2
+    bne @emit
+:   sta spr_tile_buf+2
+    stx spr_tile_buf+3
+
+@emit:
     lda facing
     beq :+
     lda #$40            ; 左向きは水平反転属性
@@ -152,13 +204,7 @@ draw_player:
     adc spr_yoff,y
     sta OAM_BUF,x       ; Y
     inx
-    lda facing
-    bne @flip
-    lda tiles_right,y
-    bne @store_tile     ; タイル番号は常に非0なので必ず分岐
-@flip:
-    lda tiles_left,y
-@store_tile:
+    lda spr_tile_buf,y
     sta OAM_BUF,x       ; タイル
     inx
     lda tmp_attr
@@ -177,5 +223,3 @@ draw_player:
 .segment "RODATA"
 spr_xoff:    .byte 0, 8, 0, 8
 spr_yoff:    .byte 0, 0, 8, 8
-tiles_right: .byte $01, $02, $03, $04
-tiles_left:  .byte $02, $01, $04, $03   ; 反転時は左右の列を入れ替え
