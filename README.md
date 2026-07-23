@@ -78,6 +78,13 @@ make clean
 - [ ] **Step 5**: サウンド (BGM / 効果音)
 - [ ] **Step 6**: タイトル画面・ゲームオーバー
 
+## 開発日誌
+
+Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md) に置いています。
+
+- [Step 1: 空が青くなった日](docs/diary/step1.md)
+- [Step 2: 世界は横に長い](docs/diary/step2.md)
+
 ## License
 
 MIT
