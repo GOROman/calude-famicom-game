@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/14-clear-lives-pits.nes)** (最新版: roms/14-clear-lives-pits.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/15-sound-driver.nes)** (最新版: roms/15-sound-driver.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -75,6 +75,7 @@ make clean
 - **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
 - **クリアと残機**: 一番右 (x=1008) 到達で「ステージクリア!」→ 最初から。残機3機、死ぬと X 目で点滅する死亡演出 → リスポーン。0機で GAMEOVER 表示。穴 (フィーチャ5) に落ちても死ぬ
 - **フォント**: ASCII $20-$5F の64文字 (A-Z 0-9 記号) を CGROM タイル $80-$BF に収録 (タイル = $80 + ASCII - $20)。GAMEOVER 表示や HUD の数字に使用
+- **サウンド**: TR-808 風の自作音源ドライバ ([試聴: docs/bgm_sample.wav](docs/bgm_sample.wav))。キック/スネアは Python で合成した波形を DPCM (1bit デルタ変調) にして ROM の $C000 に格納し DMC で再生。ハイハットはノイズ+ソフトウェアエンベロープ (減衰速度でクローズ/オープンを弾き分け)。ベースは三角波+サインテーブルの LFO ビブラート (±2, 1.9Hz)。16ステップシーケンサ (8F/step ≈ 112BPM) で4つ打ちを刻む
 
 ## ロードマップ
 
@@ -83,7 +84,7 @@ make clean
 - [x] **Step 3**: 地形との当たり判定
 - [x] **Step 4**: 敵キャラクター「決意マン」と接触判定
 - [x] **Step 4.5**: アイテム・ステージクリア・残機3機とゲームオーバー・穴 (落ちると死ぬ)
-- [ ] **Step 5**: サウンド (BGM / 効果音)
+- [x] **Step 5**: サウンド — TR-808 風音源ドライバ (BGM)
 - [ ] **Step 6**: タイトル画面
 
 ## 開発日誌
@@ -96,6 +97,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [番外編: URLがカセットになる日 (ステージエディタ)](docs/diary/editor.md)
 - [Step 4: 決意マン、行動に倒れる](docs/diary/step4.md)
 - [終わりがあるからゲームになる (クリア・残機・穴・GAME OVER)](docs/diary/clear-lives.md)
+- [Step 5: ROMの中の TR-808](docs/diary/step5.md)
 
 ## License
 

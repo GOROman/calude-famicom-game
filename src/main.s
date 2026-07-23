@@ -68,6 +68,12 @@ weapon_level: .res 1    ; 0=通常矢 1=パワー矢 (速い+貫通)
 game_state:   .res 1    ; 0=プレイ中 1=クリア 2=死亡演出 3=ゲームオーバー
 state_timer:  .res 1    ; 演出の残りフレーム
 lives:        .res 1    ; 残機
+snd_tick:     .res 1    ; 音源: ステップ内フレーム (0-7)
+snd_step:     .res 1    ; 音源: シーケンサステップ (0-15)
+hat_vol:      .res 1    ; ハイハットの現在音量 (エンベロープ)
+hat_decay:    .res 1    ; ハイハットの減衰速度
+vib_phase:    .res 1    ; ベースビブラートの LFO 位相
+bass_per_lo:  .res 1    ; ベースの基準周期 (ビブラートの中心)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -115,6 +121,7 @@ reset:
     jsr level_init      ; 最初の2画面分 (64列) を描画
     jsr player_init
     jsr enemy_init
+    jsr sound_init
     lda #3              ; 残機3でスタート
     sta lives
 
@@ -142,6 +149,7 @@ main_loop:
     jsr draw_enemies
     jsr draw_items
     jsr draw_hud
+    jsr update_sound
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
@@ -196,9 +204,12 @@ irq:
 .include "enemy.s"
 .include "item.s"
 .include "state.s"
+.include "sound.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq
+
+.include "../assets/drums.s"
 
 .segment "CHR"
 .include "../assets/chr.s"
