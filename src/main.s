@@ -49,6 +49,11 @@ anim_timer:   .res 1    ; 歩きアニメ用カウンタ
 attack_timer: .res 1    ; 攻撃ポーズの残りフレーム
 tmp2:         .res 1
 tmp3:         .res 1
+frame_count:  .res 1    ; グローバルフレームカウンタ
+enemy_flag:   .res 3    ; 決意マン: 0=いない 1=生存
+enemy_xlo:    .res 3    ; ワールド X (16bit)
+enemy_xhi:    .res 3
+enemy_dir:    .res 3    ; 0=右へ 1=左へ
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -95,6 +100,7 @@ reset:
     jsr ppu_init        ; パレット設定 + ネームテーブルクリア
     jsr level_init      ; 最初の2画面分 (64列) を描画
     jsr player_init
+    jsr enemy_init
 
     lda #%10000000      ; NMI 有効, BG/SP ともパターンテーブル0
     sta PPUCTRL
@@ -105,10 +111,11 @@ main_loop:
     jsr read_controller
     jsr update_player
     jsr update_arrows
+    jsr update_enemies
     jsr update_camera
     jsr draw_player
     jsr draw_arrows
-    jsr draw_shadow
+    jsr draw_enemies
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
@@ -160,6 +167,7 @@ irq:
 .include "player.s"
 .include "level.s"
 .include "arrow.s"
+.include "enemy.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq

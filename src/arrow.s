@@ -33,6 +33,39 @@ update_arrows:
     sta arrow_xhi,x
     bmi @despawn        ; ワールド左端外
 @check:
+    ; ---- ブロック命中判定 (矢の先端) ----
+    lda arrow_flag,x
+    cmp #1
+    bne @tip_left
+    lda arrow_xlo,x     ; 右向き: 先端 = x+8
+    clc
+    adc #8
+    sta tmp
+    lda arrow_xhi,x
+    adc #0
+    jmp @tip_do
+@tip_left:
+    lda arrow_xlo,x     ; 左向き: 先端 = x
+    sta tmp
+    lda arrow_xhi,x
+@tip_do:
+    sta tmp2
+    cmp #4
+    bcs @despawn        ; ワールド外
+    txa
+    pha
+    lda arrow_y,x
+    clc
+    adc #4              ; シャフトの高さで判定
+    jsr probe_top
+    cmp #$FF
+    beq @tip_clear
+    pla                 ; ブロックに刺さった → 消滅
+    tax
+    jmp @despawn
+@tip_clear:
+    pla
+    tax
     ; 画面内か: (world - scroll) が 0..255 に収まるか
     lda arrow_xlo,x
     sec

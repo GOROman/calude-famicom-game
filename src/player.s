@@ -271,40 +271,6 @@ probe_two:
     lda tmp3
 :   rts
 
-; ---- 影を落とす面の Y (プレイヤー中央 x+8 の列。ブロック上空ならその上端) ----
-shadow_surface:
-    lda world_x_lo
-    clc
-    adc #8
-    sta tmp
-    lda world_x_hi
-    adc #0
-    sta tmp2
-    lda tmp
-    lsr
-    lsr
-    lsr
-    lsr
-    ldx tmp2
-    beq :+
-    ora metacol_hi,x
-:   tax
-    lda level_map,x
-    beq @ground
-    tax
-    lda player_y
-    clc
-    adc #16             ; 足元
-    cmp block_top_tbl,x
-    bcc @on_block       ; ブロックより上にいる → ブロック上面に影
-    beq @on_block       ; ちょうど乗っている
-@ground:
-    lda #200
-    rts
-@on_block:
-    lda block_top_tbl,x
-    rts
-
 ; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
 ; ポーズ選択: 上半身 = 通常/攻撃(弓を引く), 下半身 = 立ち/歩き2コマ/ジャンプ
 draw_player:
@@ -389,52 +355,6 @@ draw_player:
     iny
     cpy #4
     bne @loop
-    rts
-
-; ---- 影 (スプライト 6,7 = OAM +24/+28): 高度に応じて 3 段階に縮小 ----
-draw_shadow:
-    jsr shadow_surface
-    sta tmp3            ; 面の Y
-    sec
-    sbc #5
-    sta OAM_BUF+24      ; 影スプライトの Y (楕円が面のライン上に乗る)
-    sta OAM_BUF+28
-    lda tmp3
-    sec
-    sbc player_y
-    sec
-    sbc #16             ; 高度 = 面 - 足元
-    beq @large
-    cmp #25
-    bcc @medium
-    lda #$56            ; 高い → 小さい影
-    bne @single
-@medium:
-    lda #$55            ; 中くらいの影
-@single:
-    sta OAM_BUF+25
-    lda #0
-    sta OAM_BUF+26
-    lda player_x
-    clc
-    adc #4
-    sta OAM_BUF+27
-    lda #$FF            ; 2枚目は隠す
-    sta OAM_BUF+28
-    rts
-@large:
-    lda #$54            ; 接地 → 16px の影 (左右2枚)
-    sta OAM_BUF+25
-    sta OAM_BUF+29
-    lda #0
-    sta OAM_BUF+26
-    lda #$40            ; 右半分は水平反転
-    sta OAM_BUF+30
-    lda player_x
-    sta OAM_BUF+27
-    clc
-    adc #8
-    sta OAM_BUF+31
     rts
 
 .segment "RODATA"

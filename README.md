@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/10-collision-shadow.nes)** (最新版: roms/10-collision-shadow.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/11-ketsuiman.nes)** (最新版: roms/11-ketsuiman.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -55,8 +55,9 @@ make clean
 │   ├── ppu.s          # PPU 初期化・画面クリア・パレット
 │   ├── controller.s   # コントローラ読み取り
 │   ├── player.s       # プレイヤー移動・ジャンプ物理・メタスプライト描画
-│   └── level.s        # レベルデータ・カメラ・列ストリーミング
-│   └── arrow.s        # 弓矢 (発射・飛翔・画面外消滅)
+│   ├── level.s        # レベルデータ・カメラ・列ストリーミング
+│   ├── arrow.s        # 弓矢 (発射・飛翔・ブロック/敵への命中)
+│   └── enemy.s        # 決意マン (パトロール・踏みつけ・接触判定)
 ├── assets/
 │   └── chr.s          # CHR パターンデータ (.byte 直書き)
 └── roms/              # 歴代バージョンの ROM アーカイブ
@@ -69,14 +70,15 @@ make clean
 - **プレイヤー**: 16x16 メタスプライト (8x8 x4枚)。左右反転は水平フリップ属性+タイル列入れ替え。上半身 (通常/弓を引く) と下半身 (立ち/歩き2コマ/ジャンプ) を独立に切り替えるポーズ合成方式で、歩きながらの攻撃ポーズも表現
 - **横スクロール**: 垂直ミラーリングの2画面をリングとして使用。プレイヤーは16bitワールド座標で動き、カメラは画面中央 (x=120) に追従、[0, 768] でクランプ。8px境界を越えるたびに画面外の1列 (縦30タイル) を NMI 中に PPU へ縦書き転送する列ストリーミング (SMB 方式)
 - **レベル**: 128列 (4画面分) を列単位のフィーチャコード (平地/柱/浮きブロック) で圧縮した `level_map` から生成
-- **弓矢**: B の立ち上がりエッジで発射、ワールド座標で 4 px/f 飛翔、画面外に出たスロットから再利用 (同時2発)
+- **弓矢**: B の立ち上がりエッジで発射、ワールド座標で 4 px/f 飛翔。ブロックか敵に当たるか画面外に出ると消える (同時2発)
+- **決意マン**: 地上を 0.5 px/f でパトロールし、ブロックや世界の端で折り返す。矢が当たるか上から踏むと倒せる (踏むとプレイヤーはバウンド)。地上で接触するとスタート地点に戻される
 
 ## ロードマップ
 
 - [x] **Step 1**: 画面クリア + スプライト表示、左右移動とジャンプ
 - [x] **Step 2**: 背景 (地面・ブロック) と横スクロール
 - [x] **Step 3**: 地形との当たり判定
-- [ ] **Step 4**: 敵キャラクター「決意マン」と接触判定
+- [x] **Step 4**: 敵キャラクター「決意マン」と接触判定
 - [ ] **Step 5**: サウンド (BGM / 効果音)
 - [ ] **Step 6**: タイトル画面・ゲームオーバー
 
