@@ -59,6 +59,12 @@ fx_timer:     .res 1    ; ヒットエフェクトの残りフレーム
 fx_xlo:       .res 1    ; エフェクトのワールド X (16bit)
 fx_xhi:       .res 1
 fx_y:         .res 1
+item_flag:    .res 2    ; アイテム: 0=なし 1=無敵の星 2=パワー矢
+item_xlo:     .res 2    ; ワールド X (16bit)
+item_xhi:     .res 2
+item_y:       .res 2
+star_timer:   .res 1    ; 無敵の残り (2フレームに1減)
+weapon_level: .res 1    ; 0=通常矢 1=パワー矢 (速い+貫通)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -117,10 +123,12 @@ main_loop:
     jsr update_player
     jsr update_arrows
     jsr update_enemies
+    jsr update_items
     jsr update_camera
     jsr draw_player
     jsr draw_arrows
     jsr draw_enemies
+    jsr draw_items
     lda #1
     sta nmi_ready
 :   lda nmi_ready       ; NMI (vblank) を待つ
@@ -173,6 +181,7 @@ irq:
 .include "level.s"
 .include "arrow.s"
 .include "enemy.s"
+.include "item.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq

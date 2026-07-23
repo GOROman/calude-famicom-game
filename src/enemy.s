@@ -38,6 +38,7 @@ update_enemies:
     bne @dying_next
     lda #0
     sta enemy_flag,x
+    jsr spawn_item      ; 消え終わったらアイテムをドロップ
 @dying_next:
     dex
     bpl @dying_loop
@@ -130,9 +131,11 @@ update_enemies:
     lda tmp
     cmp #23
     bcs @arrow_next
-    lda #0              ; 命中! 矢は消え、敵はダメージアニメへ
+    lda weapon_level    ; 命中! パワー矢は貫通する (通常矢は消える)
+    bne :+
+    lda #0
     sta arrow_flag,y
-    lda #188
+:   lda #188
     jsr kill_enemy
     jmp @col_next
 @arrow_next:
@@ -178,10 +181,17 @@ update_enemies:
     sta jump_origin_y
     jmp @col_next
 @player_die:
+    lda star_timer      ; 無敵中なら触れた決意マンのほうが倒れる
+    beq @really_die
+    lda #188
+    jsr kill_enemy
+    jmp @col_next
+@really_die:
     jsr player_init     ; スタート地点へ戻される
     lda #0
     sta arrow_flag
     sta arrow_flag+1
+    sta weapon_level    ; パワー矢はやられると失う
 @col_next:
     dex
     bmi @done

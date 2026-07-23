@@ -1,7 +1,7 @@
 ; 弓矢: B ボタンで発射、画面内に最大2発
 ; ワールド座標で飛び、画面外に出たら消える
 
-ARROW_SPEED = 4         ; px/フレーム
+; 矢の速度は weapon_level で変わる (arrow_speed_tbl 参照)
 ARROW_TILE  = $08
 ARROW_OAM   = 16        ; OAM バッファ内オフセット (スプライト4,5 = プレイヤーの次)
 
@@ -15,18 +15,20 @@ update_arrows:
     beq @next
     cmp #1
     bne @move_left
+    ldy weapon_level    ; パワー矢は速い
     lda arrow_xlo,x     ; 右へ
     clc
-    adc #ARROW_SPEED
+    adc arrow_speed_tbl,y
     sta arrow_xlo,x
     lda arrow_xhi,x
     adc #0
     sta arrow_xhi,x
     jmp @check
 @move_left:
+    ldy weapon_level
     lda arrow_xlo,x     ; 左へ
     sec
-    sbc #ARROW_SPEED
+    sbc arrow_speed_tbl,y
     sta arrow_xlo,x
     lda arrow_xhi,x
     sbc #0
@@ -168,3 +170,7 @@ draw_arrows:
     cpx #2
     bne @loop
     rts
+
+.segment "RODATA"
+arrow_speed_tbl: .byte 4, 6 ; 矢の速度 (通常, パワー矢)
+.segment "CODE"

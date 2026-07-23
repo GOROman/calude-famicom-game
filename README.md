@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/12-hit-anim.nes)** (最新版: roms/12-hit-anim.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/13-items.nes)** (最新版: roms/13-items.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -71,7 +71,8 @@ make clean
 - **横スクロール**: 垂直ミラーリングの2画面をリングとして使用。プレイヤーは16bitワールド座標で動き、カメラは画面中央 (x=120) に追従、[0, 768] でクランプ。8px境界を越えるたびに画面外の1列 (縦30タイル) を NMI 中に PPU へ縦書き転送する列ストリーミング (SMB 方式)
 - **レベル**: 128列 (4画面分) を列単位のフィーチャコード (平地/柱/浮きブロック) で圧縮した `level_map` から生成
 - **弓矢**: B の立ち上がりエッジで発射、ワールド座標で 4 px/f 飛翔。ブロックか敵に当たるか画面外に出ると消える (同時2発)
-- **決意マン**: 地上を 0.5 px/f でパトロールし、ブロックや世界の端で折り返す。矢が当たるか上から踏むと倒せる (踏むとプレイヤーはバウンド)。地上で接触するとスタート地点に戻される
+- **決意マン**: 地上を 0.5 px/f でパトロールし、ブロックや世界の端で折り返す。矢が当たるか上から踏むと倒せる (踏むとプレイヤーはバウンド)。地上で接触するとスタート地点に戻される。倒すとダメージ顔 (X目) → 点滅消失のアニメ後、アイテムをドロップ
+- **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
 
 ## ロードマップ
 

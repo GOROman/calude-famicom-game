@@ -333,6 +333,15 @@ draw_player:
     beq :+
     lda #$40            ; 左向きは水平反転属性
 :   sta tmp_attr
+    lda star_timer      ; 無敵中はパレットサイクルで点滅
+    beq @no_star
+    lda frame_count
+    lsr
+    lsr
+    and #3
+    ora tmp_attr
+    sta tmp_attr
+@no_star:
     ldy #0              ; パーツ番号 0-3
     ldx #0              ; OAM オフセット
 @loop:
