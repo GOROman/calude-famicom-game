@@ -282,9 +282,9 @@ probe_two:
     lda probe_res
 :   rts
 
-; ---- 16x32 メタスプライト (8x8 x8枚 = 縦に 16x16 x2) を OAM バッファへ ----
-; PT1 のタイル: 上半身ベース ($00 通常 / $04 攻撃 / $08 ダメージ)
-;               下半身ベース ($0C 立ち / $10+フレーム*4 歩き16F / $50 ジャンプ)
+; ---- 16x32 メタスプライト (8x8 x8枚) を OAM バッファへ ----
+; PT1: ポーズ単位 8タイル。tile = base + (part & $FE) | 列
+; $00 立ち / $08-$20 歩き4コマ / $28-$38 ジャンプ上昇・頂点・下降 / $40-$50 弓3段 / $58 X目
 draw_player:
     lda #0
     sta tmp2            ; 1=死亡ポーズ
@@ -312,46 +312,59 @@ draw_player:
     sbc scroll_lo
     sta player_x
 
-    ; ---- 上半身ベース選択 ----
+    ; ---- ポーズ選択 ----
     lda tmp2
     beq @chk_attack
-    lda #$08            ; ダメージ (X目)
-    bne @set_top
+    lda #$58            ; X目
+    bne @set_pose
 @chk_attack:
     lda attack_timer
-    beq @top_normal
+    beq @chk_air
     dec attack_timer
-    lda #$04            ; 弓を引く
-    bne @set_top
-@top_normal:
-    lda #$00
-@set_top:
-    sta spr_tile_buf    ; [0] = 上半身ベース
-
-    ; ---- 下半身ベース選択 ----
-    lda tmp2
-    bne @stand
+    lda attack_timer    ; 弓3段: 引き→狙い→放ち
+    cmp #8
+    bcc :+
+    lda #$40
+    bne @set_pose
+:   cmp #4
+    bcc :+
+    lda #$48
+    bne @set_pose
+:   lda #$50
+    bne @set_pose
+@chk_air:
     lda on_ground
     bne @grounded
-    lda #$50            ; ジャンプ
-    bne @set_bot
+    lda vel_y_hi        ; ジャンプ: 上昇/頂点/下降で3相
+    bmi @rise
+    beq @apex
+    lda #$38
+    bne @set_pose
+@apex:
+    lda #$30
+    bne @set_pose
+@rise:
+    lda #$28
+    bne @set_pose
 @grounded:
     lda buttons
     and #BTN_LEFT | BTN_RIGHT
     beq @stand
     inc anim_timer
-    lda anim_timer      ; 歩き16フレーム (2ゲームフレーム/コマ = 32Fで1周)
+    lda anim_timer      ; 歩き4コマ (4F/コマ)
     lsr
-    and #15
+    lsr
+    and #3
+    asl
     asl
     asl
     clc
-    adc #$10
-    bne @set_bot        ; 常に非0
+    adc #$08
+    bne @set_pose       ; 常に非0
 @stand:
-    lda #$0C
-@set_bot:
-    sta spr_tile_buf+1  ; [1] = 下半身ベース
+    lda #$00
+@set_pose:
+    sta spr_tile_buf    ; [0] = ポーズベース
 
     ; ---- 8 スプライト描画 ----
     lda facing
@@ -369,7 +382,7 @@ draw_player:
     adc player_y
     sta OAM_BUF,y
     iny
-    txa                 ; クアドラント = (part&2) | 列' (左向きは列反転)
+    txa                 ; 列' (左向きは反転)
     and #1
     sta tmp
     lda facing
@@ -378,19 +391,11 @@ draw_player:
     eor #1
     sta tmp
 :   txa
-    and #2
+    and #%11111110
     ora tmp
-    sta tmp
-    cpx #4
-    bcs @bot_tile
-    lda spr_tile_buf
-    bcc @add_tile       ; cpx の C クリアを利用
-@bot_tile:
-    lda spr_tile_buf+1
-@add_tile:
     clc
-    adc tmp
-    sta OAM_BUF,y       ; タイル
+    adc spr_tile_buf    ; タイル = ベース + (part&$FE)|列'
+    sta OAM_BUF,y
     iny
     lda tmp_attr
     sta OAM_BUF,y       ; 属性 (パレット0)

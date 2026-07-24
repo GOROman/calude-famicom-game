@@ -2,7 +2,7 @@
 ; ワールド座標で飛び、画面外に出たら消える
 
 ; 矢の速度は weapon_level で変わる (arrow_speed_tbl 参照)
-ARROW_TILE  = $60
+ARROW_TILE  = $74
 ARROW_OAM   = 32        ; OAM バッファ内オフセット (スプライト8,9 = プレイヤー8枚の次)
 
 .segment "CODE"

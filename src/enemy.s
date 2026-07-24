@@ -280,10 +280,10 @@ draw_enemies:
     and #2
     bne @hide
 @hurt_tiles:
-    lda #$58            ; ダメージ顔 (X目+口開け)
+    lda #$6C            ; ダメージ顔 (X目+口開け)
     bne @set_base       ; 常に分岐
 @alive_tiles:
-    lda #$54
+    lda #$68
 @set_base:
     sta tmp3
     lda enemy_xlo,x     ; 画面 X (スクロール圏外なら非表示)
@@ -352,10 +352,10 @@ draw_enemies:
     lda fx_timer
     cmp #7
     bcs @fx_small
-    lda #$5D            ; 後半: 大バースト
+    lda #$71            ; 後半: 大バースト
     bne @fx_tile
 @fx_small:
-    lda #$5C            ; 前半: 小スパーク
+    lda #$70            ; 前半: 小スパーク
 @fx_tile:
     sta OAM_BUF+89
     lda #ENEMY_ATTR

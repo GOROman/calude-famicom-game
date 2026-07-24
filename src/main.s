@@ -101,6 +101,7 @@ boss_vy_hi:   .res 1
 boss_timer:   .res 1    ; 行動/演出タイマー
 boss_flash:   .res 1    ; 被弾フラッシュ (無敵時間)
 snd_fade:     .res 1    ; BGM フェードイン (0-15 の音量キャップ)
+mel_note:     .res 1    ; メロディの前ノート (同音はタイ = リトリガしない)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -200,7 +201,9 @@ nmi:
     tya
     pha
     lda nmi_ready
-    beq @skip           ; メインループが間に合っていなければ何もしない
+    bne :+
+    jmp @skip           ; メインループが間に合っていなければ何もしない
+:
     lda #$00
     sta OAMADDR
     lda #>OAM_BUF
@@ -213,6 +216,28 @@ nmi:
     sta PPUCTRL
     jsr write_column
 @no_col:
+    ; ---- タイトル: パレットサイクルでロゴを輝かせる ----
+    lda game_state
+    cmp #4
+    bne @no_palanim
+    inc frame_count     ; タイトル中は NMI が刻む
+    lda frame_count
+    and #7
+    bne @no_palanim
+    lda frame_count
+    lsr
+    lsr
+    lsr
+    and #7
+    tax
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$09            ; BG パレット2 スロット1 (ロゴの金色)
+    sta PPUADDR
+    lda logo_cycle,x
+    sta PPUDATA
+@no_palanim:
     ; スクロールとネームテーブル選択 (PPUADDR を触った後に必ず再設定)
     lda scroll_hi
     and #1
@@ -277,6 +302,9 @@ irq:
 .include "state.s"
 .include "sound.s"
 .include "boss.s"
+
+.segment "RODATA"
+logo_cycle: .byte $27,$37,$28,$38,$27,$17,$07,$17  ; 金色の明滅 (炎のゆらぎ)
 
 .segment "VECTORS"
     .addr nmi, reset, irq

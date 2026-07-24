@@ -45,6 +45,7 @@ sound_init:
     sta hat_vol
     sta vib_phase
     sta mel_vol
+    sta mel_note
     sta sfx1_type
     sta sfx2_type
     sta sfxn_t
@@ -186,6 +187,9 @@ update_sound:
     ldy tmp
     jsr get_mel
     beq @mel_rest
+    cmp mel_note        ; 同音が続く場合はタイ (DQ2 風のサステイン)
+    beq @echo
+    sta mel_note
     tax
     lda #9              ; アタック音量 (9→6 へソフトエンベロープ)
     sta mel_vol
@@ -198,6 +202,7 @@ update_sound:
 @mel_rest:
     lda #0
     sta mel_vol
+    sta mel_note
 @echo:
     ; ---- SQ2: タイトル/ED=デチューンユニゾン (DQ2風) / ゲーム=2ステップ遅れエコー ----
     lda game_state
