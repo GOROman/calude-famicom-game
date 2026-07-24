@@ -104,7 +104,8 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [Step 4: 決意マン、行動に倒れる](docs/diary/step4.md)
 - [終わりがあるからゲームになる (クリア・残機・穴・GAME OVER)](docs/diary/clear-lives.md)
 - [Step 5: ROMの中の TR-808](docs/diary/step5.md)
-- [Step 6 (前編): 4つのステージと6つの効果音](docs/diary/step6.md)
+- [Step 6: 4つのステージと6つの効果音](docs/diary/step6.md)
+- [磨きの日 (スコア・2曲構成・デチューン)](docs/diary/polish.md)
 
 ## License
 
