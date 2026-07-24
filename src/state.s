@@ -252,7 +252,7 @@ draw_round:
     lda #118
     sta OAM_BUF,y
     iny
-    lda #$11            ; 顔タイル (立ち 頭右)
+    lda #$5F            ; 顔アイコンタイル
     sta OAM_BUF,y
     iny
     lda #0
@@ -877,7 +877,7 @@ draw_hud:
     sta OAM_BUF+HUD_OAM+8
     sta OAM_BUF+HUD_OAM+12
     sta OAM_BUF+HUD_OAM+16
-    lda #$11            ; 狩人の顔タイル (頭の右)
+    lda #$5F            ; 狩人の顔アイコンタイル
     sta OAM_BUF+HUD_OAM+1
     lda lives
     clc
