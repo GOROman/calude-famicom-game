@@ -3,18 +3,18 @@
 TITLE_SPLIT_Y = 136
 TITLE_SPR0_X  = 200
 TITLE_SPR0_Y  = 134
-TITLE_EYE_N   = 6
-TITLE_EYE_HN  = 5
-TITLE_EYE_ON  = 5
+TITLE_EYE_N   = 5
+TITLE_EYE_HN  = 3
+TITLE_EYE_ON  = 6
 TITLE_EYE_NEAR = 4
 .segment "RODATA"
-title_eye_spr:       ; 閉じ目 (手前の目が先頭 = ウィンクは先頭だけ使う)
-    .byte $37,$CE,$01,$C4,$37,$64,$01,$CC,$3F,$E8,$01,$C4,$3F,$E0,$01,$CC,$37,$CC,$01,$B6,$3F,$B1,$01,$B6
+title_eye_spr:       ; 閉じ目 (blink エディタ)
+    .byte $38,$CE,$01,$C6,$39,$64,$01,$C4,$40,$E0,$01,$CC,$41,$FB,$01,$C7,$3E,$E8,$01,$B7
 title_eye_half:      ; 半目
-    .byte $37,$FB,$01,$C4,$37,$AC,$01,$CC,$3F,$B3,$01,$C4,$37,$CC,$01,$B6,$3F,$D7,$01,$B6
-title_eye_open:      ; 白目 (開き目のとき常時表示)
-    .byte $37,$B5,$01,$C4,$37,$15,$01,$CC,$3F,$CB,$01,$C4,$3F,$F2,$01,$CC,$3F,$C2,$01,$B6
-title_eye_pal:       ; 肌/茶/白 (スプライトパレット1 へ)
+    .byte $38,$AC,$01,$C6,$39,$B3,$01,$C4,$3E,$B5,$01,$B7
+title_eye_open:      ; 白目 (開き目で常時表示)
+    .byte $39,$15,$01,$C8,$3A,$CB,$01,$C4,$3F,$F2,$01,$BB,$41,$CC,$01,$CC,$42,$B1,$01,$C4,$43,$D7,$01,$BA
+title_eye_pal:       ; 肌/茶/白 (スプライトパレット1)
     .byte $37,$17,$30
 
 title_img_palette:

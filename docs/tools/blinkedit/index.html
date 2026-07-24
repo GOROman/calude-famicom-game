@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>目パチエディタ — 狩人行動</title>
+<style>
+body { background:#1a1a24; color:#eee; font-family:monospace; margin:16px; }
+h1 { font-size:18px; } h2 { font-size:14px; color:#aaa; }
+.row { display:flex; gap:24px; flex-wrap:wrap; }
+canvas { image-rendering:pixelated; border:1px solid #555; background:#000; }
+.tools button, .tabs button { font-family:monospace; margin:2px; padding:6px 10px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; }
+.tools button.sel, .tabs button.sel { background:#5a4; border-color:#8f8; }
+#exp { width:100%; height:120px; background:#111; color:#9f9; font-size:11px; }
+.note { color:#888; font-size:12px; }
+.sw { display:inline-block; width:14px; height:14px; vertical-align:middle; border:1px solid #999; margin-right:4px; }
+</style>
+</head>
+<body>
+<h1>目パチエディタ <span class="note">— タイトル画面の目スプライト (閉じ目/半目/白目) を編集</span></h1>
+<div class="row">
+  <div>
+    <div class="tabs">
+      レイヤー:
+      <button id="tab-closed" class="sel" onclick="setLayer('closed')">閉じ目</button>
+      <button id="tab-half" onclick="setLayer('half')">半目</button>
+      <button id="tab-white" onclick="setLayer('white')">白目 (開き目)</button>
+    </div>
+    <div class="tools">
+      ペン:
+      <button id="c-S" class="sel" onclick="setColor('S')"><span class="sw" style="background:#e4c490"></span>肌</button>
+      <button id="c-B" onclick="setColor('B')"><span class="sw" style="background:#783c00"></span>茶</button>
+      <button id="c-W" onclick="setColor('W')"><span class="sw" style="background:#ecefec"></span>白</button>
+      <button id="c-." onclick="setColor('.')"><span class="sw" style="background:#000"></span>消す</button>
+      <button onclick="clearLayer()">レイヤー全消去</button>
+    </div>
+    <canvas id="ed" width="624" height="480"></canvas>
+    <div class="note">クリック/ドラッグで描画。グリッド太線 = 8px タイル境界。背景はタイトル画像 (編集不可)。</div>
+  </div>
+  <div>
+    <h2>プレビュー (実機と同じシーケンス)</h2>
+    <canvas id="pv" width="312" height="240"></canvas><br>
+    <button onclick="togglePreview()" id="pvbtn">▶ 再生</button>
+    <button onclick="setState(0)">開</button>
+    <button onclick="setState(1)">半</button>
+    <button onclick="setState(2)">閉</button>
+    <h2>書き出し</h2>
+    <button onclick="doExport()">JSON 書き出し</button>
+    <button onclick="copyExp()">コピー</button>
+    <div class="note">JSON を tools/apply_blink.py に渡すとアセットへ反映されます。<br>
+    タイル上限: 全レイヤー合計 16 枚 / 各状態スプライト 8 枚まで。</div>
+    <textarea id="exp" readonly></textarea>
+    <div id="stat" class="note"></div>
+  </div>
+</div>
+<script>
+const DATA = {"region": {"x": 172, "y": 44, "w": 52, "h": 40}, "bg": "iVBORw0KGgoAAAANSUhEUgAAADQAAAAoCAIAAAA+Dk5cAAADV0lEQVR4nK2YvW7bMBCAaaND5iJTIQSGJ4+dMhR6hIyeijxABg+Ch4CPIHQINHjwA3js4Icg+gCdMgWGIWQSPHcs6HPOpyOPPNk5GAFDHnUf74ekNDIxWU8nu287Y0ztev22NJP30xBI7XxnWuAh6+nEGPP05udmp4CMzRChZJP3CSOrHV8MiC39D7AGyTjhNtZpS0P7n952SEaZEojIF1UI5UtWQwqlJT6DNgsWENAFrKcT6r9sSoyiNJ8ldRB3W/bclrYVCavS5xoB2/DAqJ9waEBBSHkjSZ1UBm+FaSC5MwPXukZaZcJ8QtIKUvJF4FrXrGyVMnVF9CWOaKw4nC2NhuyCMopWdHouh1vUTcJAerROBi6bGKHCWCJY1A1rGNNzqo2lkWQ+3AJZTUT914NrXYMEK1shSiLQdZ+mdY3ER6syUW10+khZCjiHrbh1TVFW0XNMchi6TVJGhXFYCtLSwa/R/vpYa/hQ3IlC84nko+uH9hkOEyvMBsbBpCir1jWADnxF6ReJPey8wnM5W+BnuLTbpCUWRzKaDOiblfVD2El/2YfzsGalKCtACdewqH3mhWagk11hEjsLO8p6cKE2fSjGjvJhELEf/2KDOgP7E4JGB3gONheIYBvYYP+urHdz9CEaW7wg0nrg7UXt3YAGoIZYyHDUlmb+ozc0Wx4D93NujNnei+a2915ze6+4CcMEasZTCgcao2l+iRF8fckYfX1Rh/X3n1MjXf/NkebKuzRynz3HXlIkA6BWfJStpICjYZJt9oUGcbaMhTW8tVJ70a2fCoPWvNhKIoY1ehJAkg2yRzWzeaaCY2czQ2mdv0RlN4Xq+bTvsHXOlnksWEbKc7iPX3Yjb+RS1fCp9rnw8AFJ34pRJ1yYPrgZOMRKJNmKXEvDIWxTSg1ffp9j7pEgFoEXgVi69yolA8dowFj1XGniG26cNw8Ofxo41fEVbiiNQieU+V//iQ5ko7AV+ZDDRHo/MLGLO2KFHxy8/r6FE+Lx7tS4Fg6NZd8tio/befYticrjXStRauEYn40dYhqsmwdHg8uEUQ6AA+kOXfX9H31Qd+h8lRw7JXsQR40C5RsMR9Ol+zwsTEQ6dLnnjCzMkl7oxM2+GADXHbrbr7eDYqT0nzT6H2czJaV03e07AAAAAElFTkSuQmCC", "layers": {"closed": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "..........................SSSSS.....................", "........................SS.S..SS....................", ".........................SS.S..SSS..................", ".........................SSSSS..SS..................", "........................SSSSSSSSS...................", "........................S.S.S..S.S..................", "...........SSSSSS.......B.S.SSSS.B..................", "...........SSSS.SS......BBBSSSSSBB..................", "...........SSSS.SS.......BBBBBBBBS..................", "...........BSSS.BB.........BBBBB.S..................", "...........BBBBBBB.........SS...SS..................", "...........SBBBBSS..................................", "...........SSSS..S..................................", "...........SSSS.....................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."], "half": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "..........................SSSSS.....................", "........................SS.S..SS....................", ".........................SS.S..SSS..................", ".........................SSSSS..SS..................", "........................BSSSSSSSSB..................", "........................BBBBS..BBB..................", "...........SSSSSS........BBBBBBBBS..................", "...........BSSS.BB..........BBB.....................", "...........BBBBBBB..................................", "............BBBB....................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."], "white": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "............................W.......................", "........................W.....W.....................", "........................W......W....................", "....................................................", ".........................W.W.WW.W...................", "........................WW.W....W...................", "...............W........WW......W...................", "...............W........WW.....WW...................", "...............W........WWW....WW...................", "...............W........WWW..WWW....................", "..............WW....................................", "...............WW...................................", "...............WWW..................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."]}};
+const RW=DATA.region.w, RH=DATA.region.h, Z=12;
+const COLORS={'S':'#e4c490','B':'#783c00','W':'#ecefec'};
+let layers={};
+for(const k in DATA.layers) layers[k]=DATA.layers[k].map(r=>r.split(''));
+let cur='closed', pen='S', drawing=false;
+const ed=document.getElementById('ed'), ectx=ed.getContext('2d');
+const bg=new Image(); bg.src='data:image/png;base64,'+DATA.bg;
+bg.onload=()=>{ redraw(); pvDraw(); };
+
+function redraw(){
+  ectx.imageSmoothingEnabled=false;
+  ectx.drawImage(bg,0,0,RW,RH,0,0,RW*Z,RH*Z);
+  const g=layers[cur];
+  for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){
+    const c=g[y][x];
+    if(c!=='.'){ ectx.fillStyle=COLORS[c]; ectx.fillRect(x*Z,y*Z,Z,Z); }
+  }
+  ectx.strokeStyle='rgba(255,255,255,0.15)';
+  for(let x=0;x<=RW;x++){ ectx.lineWidth=((DATA.region.x+x)%8===0)?2:0.5; ectx.beginPath(); ectx.moveTo(x*Z,0); ectx.lineTo(x*Z,RH*Z); ectx.stroke(); }
+  for(let y=0;y<=RH;y++){ ectx.lineWidth=((DATA.region.y+y)%8===0)?2:0.5; ectx.beginPath(); ectx.moveTo(0,y*Z); ectx.lineTo(RW*Z,y*Z); ectx.stroke(); }
+  stat();
+}
+function paint(e){
+  const r=ed.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/Z), y=Math.floor((e.clientY-r.top)/Z);
+  if(x<0||y<0||x>=RW||y>=RH) return;
+  layers[cur][y][x]=pen;
+  redraw();
+}
+ed.addEventListener('mousedown',e=>{drawing=true;paint(e);});
+ed.addEventListener('mousemove',e=>{if(drawing)paint(e);});
+window.addEventListener('mouseup',()=>drawing=false);
+function setLayer(k){ cur=k; document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('sel')); document.getElementById('tab-'+k).classList.add('sel'); redraw(); }
+function setColor(c){ pen=c; document.querySelectorAll('.tools button').forEach(b=>b.classList.remove('sel')); document.getElementById('c-'+c).classList.add('sel'); }
+function clearLayer(){ layers[cur]=Array.from({length:RH},()=>Array(RW).fill('.')); redraw(); }
+
+// ---- タイル使用量 ----
+function packTiles(){
+  const tiles=new Set(); let sprs={};
+  for(const k in layers){
+    const g=layers[k]; const boxes=[]; const covered=Array.from({length:RH},()=>Array(RW).fill(false));
+    for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){
+      if(g[y][x]!=='.'&&!covered[y][x]){
+        boxes.push([x,y]);
+        for(let yy=y;yy<Math.min(y+8,RH);yy++)for(let xx=x;xx<Math.min(x+8,RW);xx++)covered[yy][xx]=true;
+      }
+    }
+    sprs[k]=boxes.length;
+    for(const [bx,by] of boxes){
+      let t='';
+      for(let yy=0;yy<8;yy++)for(let xx=0;xx<8;xx++)
+        t+=(by+yy<RH&&bx+xx<RW)?g[by+yy][bx+xx]:'.';
+      tiles.add(t);
+    }
+  }
+  return {tiles:tiles.size, sprs};
+}
+function stat(){
+  const p=packTiles();
+  const over=p.tiles>16||Object.values(p.sprs).some(v=>v>8);
+  document.getElementById('stat').innerHTML=
+    `タイル ${p.tiles}/16 ・ スプライト 閉${p.sprs.closed||0} 半${p.sprs.half||0} 白${p.sprs.white||0} (各8まで)`+(over?' <b style="color:#f66">⚠ 上限超過</b>':' ✓');
+}
+
+// ---- プレビュー ----
+const pv=document.getElementById('pv'), pctx=pv.getContext('2d');
+let pvState=0, playing=false, pvTimer=null;
+function pvDraw(){
+  pctx.imageSmoothingEnabled=false;
+  pctx.drawImage(bg,0,0,RW,RH,0,0,RW*6,RH*6);
+  const layer= pvState===2?'closed': pvState===1?'half':'white';
+  const g=layers[layer];
+  for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){
+    const c=g[y][x];
+    if(c!=='.'){ pctx.fillStyle=COLORS[c]; pctx.fillRect(x*6,y*6,6,6); }
+  }
+}
+function setState(s){ pvState=s; pvDraw(); }
+async function blinkOnce(){
+  setState(1); await wait(50);
+  setState(2); await wait(120);
+  setState(1); await wait(50);
+  setState(0);
+}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loop(){
+  while(playing){
+    await wait(1300+Math.random()*2100);   // 間隔ランダム (80-207F 相当)
+    if(!playing) break;
+    await blinkOnce();
+    if(Math.random()<0.25){ await wait(230); await blinkOnce(); }  // 2連
+  }
+}
+function togglePreview(){
+  playing=!playing;
+  document.getElementById('pvbtn').textContent=playing?'⏸ 停止':'▶ 再生';
+  if(playing) loop(); else setState(0);
+}
+
+// ---- 書き出し ----
+function doExport(){
+  const out={region:DATA.region, layers:{}};
+  for(const k in layers) out.layers[k]=layers[k].map(r=>r.join(''));
+  document.getElementById('exp').value=JSON.stringify(out);
+}
+function copyExp(){ const t=document.getElementById('exp'); t.select(); document.execCommand('copy'); }
+setInterval(()=>{},1e9);
+</script>
+</body>
+</html>

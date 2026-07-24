@@ -2,11 +2,13 @@
 
 **狩人 (かりゅーど) の少女**が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/27-crystal-lead.nes)** (最新版: roms/27-crystal-lead.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/28-blink-editor.nes)** (最新版: roms/28-blink-editor.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
 **🎨 [PNG→CGROM 変換ツール](https://goroman.github.io/calude-famicom-game/tools/png2chr/)** — 画像を NES の CHR データ (.byte / .chr) と 4色パレットに変換
+
+**👁 [目パチエディタ](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — タイトル画面の目パチ (閉じ目/半目/白目) をドット単位で編集、実機同様のプレビュー付き。JSON を `tools/apply_blink.py` でアセットに反映
 
 動作確認には自作 WASM エミュレータ [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu) を使用。
 
