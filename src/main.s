@@ -90,6 +90,7 @@ level_ptr:    .res 2    ; 現在ステージの level_map ポインタ
 probe_res:    .res 1    ; probe_two の中間結果
 text_ptr:     .res 2    ; 状態テキストのテーブルポインタ
 score:        .res 4    ; スコア (100点単位の10進4桁, index0=最上位)
+menu_sel:     .res 1    ; タイトルメニュー選択 (0=START 1=CONTINUE 2=OPTION)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -203,6 +204,37 @@ nmi:
     lda #$00
     sta PPUSCROLL
     sta nmi_ready
+    ; ---- タイトル画面: スプライト0ヒットで PT0→PT1 に切替 (上下スプリット) ----
+    lda game_state
+    cmp #4
+    bne @no_split
+    ldy #200            ; フラグのクリア待ち (プリレンダライン)
+@wc1:
+    ldx #40
+@wc2:
+    bit PPUSTATUS
+    bvc @cleared
+    dex
+    bne @wc2
+    dey
+    bne @wc1
+    jmp @no_split
+@cleared:
+    ldy #250            ; ヒット待ち (split 行, ~136 ライン後)
+@wh1:
+    ldx #80
+@wh2:
+    bit PPUSTATUS
+    bvs @hit
+    dex
+    bne @wh2
+    dey
+    bne @wh1
+    jmp @no_split
+@hit:
+    lda #%10010000      ; 下半分は PT1
+    sta PPUCTRL
+@no_split:
 @skip:
     pla
     tay
@@ -226,6 +258,10 @@ irq:
     .addr nmi, reset, irq
 
 .include "../assets/drums.s"
+.include "../assets/title_screen.s"
 
 .segment "CHR"
 .include "../assets/chr.s"
+
+.segment "CHRTITLE"
+.include "../assets/title_chr.s"

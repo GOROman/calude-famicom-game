@@ -89,6 +89,17 @@ update_sound:
     bne @not_fanfare
     jmp fanfare_update  ; クリア中はファンファーレ専用
 @not_fanfare:
+    cmp #2
+    bne @not_dead
+    lda #$80            ; ミス中は BGM を止める (SFX のみ鳴る)
+    sta TRI_LIN
+    lda #$30
+    sta NOI_VOL
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+    jmp sfx_overlay
+@not_dead:
     lda snd_tick
     beq :+
     jmp @no_step
