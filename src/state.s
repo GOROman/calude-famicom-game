@@ -487,14 +487,14 @@ update_title:
     adc #80
     sta blink_timer
 @draw_eyes:
-    ldx #0              ; まず目スプライト枠 (8枚) を全部隠す
+    ldx #0              ; まず目スプライト枠 (16枚) を全部隠す
     lda #$FF
 :   sta OAM_BUF+8,x
     inx
     inx
     inx
     inx
-    cpx #32
+    cpx #64
     bne :-
     lda fade_amt        ; フェード中 (イン/アウト共) はカーソルも目も非表示
     beq :+

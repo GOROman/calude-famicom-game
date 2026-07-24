@@ -13,28 +13,114 @@ RX,RY = data['region']['x'], data['region']['y']
 RW,RH = data['region']['w'], data['region']['h']
 layers = {k:[list(r) for r in v] for k,v in data['layers'].items()}
 
-# ---- パック (エディタと同じ貪欲法) ----
+# ---- 前処理1: 2px 以下の孤立ドット (誤クリック) を除去 ----
+def cleanup(g):
+    seen=[[False]*RW for _ in range(RH)]
+    removed=0
+    for y in range(RH):
+        for x in range(RW):
+            if g[y][x]!='.' and not seen[y][x]:
+                comp=[(x,y)]; seen[y][x]=True; k=0
+                while k<len(comp):
+                    cx,cy=comp[k]; k+=1
+                    for dx in (-1,0,1):
+                        for dy in (-1,0,1):
+                            nx,ny=cx+dx,cy+dy
+                            if 0<=nx<RW and 0<=ny<RH and g[ny][nx]!='.' and not seen[ny][nx]:
+                                seen[ny][nx]=True; comp.append((nx,ny))
+                if len(comp)<=2:
+                    for (cx,cy) in comp: g[cy][cx]='.'
+                    removed+=len(comp)
+    return removed
+for k in layers:
+    n=cleanup(layers[k])
+    if n: print(f'{k}: 孤立ドット {n}px を除去')
+
+# ---- パック: 最初の未カバー画素に対し、最も多く覆えるボックス位置を選ぶ貪欲法 ----
+SPR_MAX = 16
+# 3レイヤー合併からボックスグリッドを決定 (レイヤー間で位置が揃い、共通ドットのタイルが共有される)
+union=[[any(layers[k][y][x]!='.' for k in layers) for x in range(RW)] for y in range(RH)]
+rows=[y for y in range(RH) if any(union[y])]
+bands=[]
+_i=0
+while _i<len(rows):
+    y0=rows[_i]; bands.append(y0); _i+=1
+    while _i<len(rows) and rows[_i]<y0+8: _i+=1
+GRID=[]
+for y0 in bands:
+    x=0
+    while x<RW:
+        if any(union[yy][x] for yy in range(y0,min(RH,y0+8))):
+            GRID.append((x,y0)); x+=8
+        else:
+            x+=1
+def pack(name, g):
+    "共通グリッドのうち、このレイヤーに中身のあるボックスだけ使う"
+    out=[]
+    for (bx,by) in GRID:
+        if any(g[yy][xx]!='.' for yy in range(by,min(RH,by+8)) for xx in range(bx,min(RW,bx+8))):
+            out.append((bx,by))
+    return out
 tiles=[]; tables={}
 for name in ('closed','half','white'):
     g=layers[name]
-    covered=[[False]*RW for _ in range(RH)]
     sprs=[]
-    for y in range(RH):
-        for x in range(RW):
-            if g[y][x]!='.' and not covered[y][x]:
-                t=[]; chs=set()
-                for yy in range(8):
-                    for xx in range(8):
-                        c=g[y+yy][x+xx] if y+yy<RH and x+xx<RW else '.'
-                        t.append(CHARV[c]); chs.add(c)
-                        if y+yy<RH and x+xx<RW: covered[y+yy][x+xx]=True
-                assert not ('W' in chs and 'K' in chs), f'{name}: ({RX+x},{RY+y}) のタイルに白と黒が同居'
-                pal = 2 if 'K' in chs else 1          # 黒入りタイルはスプライトパレット2
-                key=(tuple(t), pal)
-                if key not in tiles: tiles.append(key)
-                sprs.append((RY+y-1, tiles.index(key), RX+x, pal))   # OAM y = top-1
-    assert len(sprs)<=8, f'{name}: スプライト {len(sprs)} 枚 (8まで)'
+    for (bx,by) in pack(name, g):
+        cells=[]
+        for yy in range(8):
+            for xx in range(8):
+                c=g[by+yy][bx+xx] if by+yy<RH and bx+xx<RW else '.'
+                cells.append(c)
+        chs=set(cells)
+        variants=[]
+        if 'W' in chs and 'K' in chs:
+            # 白黒同居: 白側 (K を透明に) と黒側 (K のみ) の2枚を重ねる
+            variants.append(([CHARV[c] if c!='K' else 0 for c in cells], 1))
+            variants.append(([3 if c=='K' else 0 for c in cells], 2))
+        else:
+            pal = 2 if 'K' in chs else 1          # 黒入りタイルはスプライトパレット2
+            variants.append(([CHARV[c] for c in cells], pal))
+        for tvals,pal in variants:
+            key=(tuple(tvals), pal)
+            if key not in tiles: tiles.append(key)
+            sprs.append((RY+by-1, tiles.index(key), RX+bx, pal))   # OAM y = top-1
+    assert len(sprs)<=SPR_MAX, f'{name}: スプライト {len(sprs)} 枚 ({SPR_MAX}まで)'
+    for y in range(240):                          # 走査線8枚制限 (分割スプライト込み)
+        n=sum(1 for (sy,_,_,_) in sprs if sy+1<=y<sy+9)
+        assert n<=8, f'{name}: y={y} でスプライトが横に {n} 枚 (走査線8枚制限)'
     tables[name]=sprs
+if len(tiles) > len(FREED):
+    # 半目レイヤーを捨て、閉じ目スプライトを 4px 上へずらして半目にする (タイル節約)
+    print(f'タイル {len(tiles)} 枚 > {len(FREED)} — 半目を閉じ目の位置ずらしで自動生成します')
+    tiles=[]; tables={}
+    for name in ('closed','white'):
+        g=layers[name]
+        sprs=[]
+        for (bx,by) in pack(name, g):
+            cells=[]
+            for yy in range(8):
+                for xx in range(8):
+                    c=g[by+yy][bx+xx] if by+yy<RH and bx+xx<RW else '.'
+                    cells.append(c)
+            chs=set(cells)
+            variants=[]
+            if 'W' in chs and 'K' in chs:
+                variants.append(([CHARV[c] if c!='K' else 0 for c in cells], 1))
+                variants.append(([3 if c=='K' else 0 for c in cells], 2))
+            else:
+                variants.append(([CHARV[c] for c in cells], 2 if 'K' in chs else 1))
+            for tvals,pal in variants:
+                key=(tuple(tvals), pal)
+                if key not in tiles: tiles.append(key)
+                sprs.append((RY+by-1, tiles.index(key), RX+bx, pal))
+        assert len(sprs)<=SPR_MAX, f'{name}: スプライト {len(sprs)} 枚 ({SPR_MAX}まで)'
+        tables[name]=sprs
+    # 半目 = 白目 (開き目) + 閉じ目の中段まぶたを 3px 上に重ねる
+    mid = sorted(set(y for (y,_,_,_) in tables['closed']))
+    mid_y = mid[len(mid)//2] if mid else 0
+    lid = [(y-3, t, x, p) for (y,t,x,p) in tables['closed'] if y==mid_y]
+    tables['half'] = lid + tables['white']
+    assert len(tables['half'])<=SPR_MAX
 assert len(tiles)<=len(FREED), f'タイル {len(tiles)} 枚 (16まで)'
 # ウィンク用: 閉じ目は手前の目 (x>=193) を先頭に並べる
 tables['closed'].sort(key=lambda s: 0 if s[2]>=193 else 1)

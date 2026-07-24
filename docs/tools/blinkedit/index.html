@@ -118,33 +118,44 @@ function clearLayer(){ layers[cur]=Array.from({length:RH},()=>Array(RW).fill('.'
 
 // ---- タイル使用量 ----
 function packTiles(){
-  const tiles=new Set(); let sprs={}; let conflicts=0;
-  for(const k in layers){
-    const g=layers[k]; const boxes=[]; const covered=Array.from({length:RH},()=>Array(RW).fill(false));
-    for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){
-      if(g[y][x]!=='.'&&!covered[y][x]){
-        boxes.push([x,y]);
-        for(let yy=y;yy<Math.min(y+8,RH);yy++)for(let xx=x;xx<Math.min(x+8,RW);xx++)covered[yy][xx]=true;
-      }
+  // apply_blink.py と同じ: 3レイヤー共通グリッドで箱を切り、白黒同居は2枚に分割
+  const union=Array.from({length:RH},(_,y)=>Array.from({length:RW},(_,x)=>
+    Object.values(layers).some(g=>g[y][x]!=='.')));
+  const rows=[]; for(let y=0;y<RH;y++) if(union[y].some(v=>v)) rows.push(y);
+  const bands=[]; let i=0;
+  while(i<rows.length){ const y0=rows[i]; bands.push(y0); i++; while(i<rows.length&&rows[i]<y0+8)i++; }
+  const GRID=[];
+  for(const y0 of bands){
+    let x=0;
+    while(x<RW){
+      let has=false;
+      for(let yy=y0;yy<Math.min(RH,y0+8);yy++) if(union[yy][x]) has=true;
+      if(has){ GRID.push([x,y0]); x+=8; } else x++;
     }
-    sprs[k]=boxes.length;
-    for(const [bx,by] of boxes){
+  }
+  const tiles=new Set(); let sprs={};
+  for(const k in layers){
+    const g=layers[k]; let n=0;
+    for(const [bx,by] of GRID){
       let t='';
       for(let yy=0;yy<8;yy++)for(let xx=0;xx<8;xx++)
         t+=(by+yy<RH&&bx+xx<RW)?g[by+yy][bx+xx]:'.';
-      tiles.add(t);
-      if(t.includes('W')&&t.includes('K')) conflicts++;
+      if(!/[SBWK]/.test(t)) continue;
+      if(t.includes('W')&&t.includes('K')){
+        tiles.add('A'+t.replace(/K/g,'.')); tiles.add('B'+t.replace(/[SBW]/g,'.')); n+=2;
+      } else { tiles.add((t.includes('K')?'B':'A')+t); n+=1; }
     }
+    sprs[k]=n;
   }
-  return {tiles:tiles.size, sprs, conflicts};
+  return {tiles:tiles.size, sprs};
 }
 function stat(){
   const p=packTiles();
-  const over=p.tiles>16||Object.values(p.sprs).some(v=>v>8);
+  const over=p.tiles>16||Object.values(p.sprs).some(v=>v>16);
   document.getElementById('stat').innerHTML=
-    `タイル ${p.tiles}/16 ・ スプライト 閉${p.sprs.closed||0} 半${p.sprs.half||0} 白${p.sprs.white||0} (各8まで)`
-    +(over?' <b style="color:#f66">⚠ 上限超過</b>':' ✓')
-    +(p.conflicts?` <b style="color:#f66">⚠ 白と黒が同じ8pxタイルに同居 (${p.conflicts}件)</b>`:'');
+    `タイル ${p.tiles}/16 ・ スプライト 閉${p.sprs.closed||0} 半${p.sprs.half||0} 白${p.sprs.white||0} (各16まで)`
+    +(over?' <b style="color:#f66">⚠ 上限超過 — 反映時は半目が自動生成に切替わります</b>':' ✓')
+    +'<br>※ 2px以下の孤立ドットは反映時に自動除去されます';
 }
 
 // ---- プレビュー ----

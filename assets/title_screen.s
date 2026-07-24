@@ -3,17 +3,17 @@
 TITLE_SPLIT_Y = 136
 TITLE_SPR0_X  = 200
 TITLE_SPR0_Y  = 134
-TITLE_EYE_N   = 5
-TITLE_EYE_HN  = 3
-TITLE_EYE_ON  = 6
+TITLE_EYE_N   = 7
+TITLE_EYE_HN  = 11
+TITLE_EYE_ON  = 8
 TITLE_EYE_NEAR = 4
 .segment "RODATA"
 title_eye_spr:       ; 閉じ目 (blink エディタ)
-    .byte $38,$CE,$01,$C6,$39,$64,$01,$C4,$40,$E0,$01,$CC,$41,$FB,$01,$C7,$3E,$E8,$01,$B7
+    .byte $35,$64,$02,$C2,$35,$E8,$02,$CA,$3D,$FB,$02,$C4,$3D,$AC,$01,$CC,$35,$CE,$01,$BA,$3D,$E0,$02,$B9,$45,$B3,$01,$BA
 title_eye_half:      ; 半目
-    .byte $38,$AC,$01,$C6,$39,$B3,$01,$C4,$3E,$B5,$01,$B7
+    .byte $3A,$E0,$02,$B9,$3A,$FB,$02,$C4,$3A,$AC,$01,$CC,$35,$B5,$01,$BA,$35,$15,$02,$C2,$3D,$CB,$01,$B9,$3D,$F2,$02,$B9,$3D,$CC,$01,$C4,$3D,$B1,$02,$C4,$3D,$AC,$01,$CC,$45,$D7,$01,$BA
 title_eye_open:      ; 白目 (開き目で常時表示)
-    .byte $39,$15,$01,$C8,$3A,$CB,$01,$C4,$3F,$F2,$01,$BB,$41,$CC,$01,$CC,$42,$B1,$01,$C4,$43,$D7,$01,$BA
+    .byte $35,$B5,$01,$BA,$35,$15,$02,$C2,$3D,$CB,$01,$B9,$3D,$F2,$02,$B9,$3D,$CC,$01,$C4,$3D,$B1,$02,$C4,$3D,$AC,$01,$CC,$45,$D7,$01,$BA
 title_eye_pal:       ; パレット1=肌/茶/白, パレット2=肌/茶/黒 ($3F15-$3F1B)
     .byte $37,$17,$30,$0F,$37,$17,$0F
 
