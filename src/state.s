@@ -116,15 +116,7 @@ draw_round_bg:
     bit PPUSTATUS
     lda #$23
     sta PPUADDR
-    lda #$CB            ; 顔 (attr 行1, 列3-4)
-    sta PPUADDR
-    lda #$55
-    sta PPUDATA
-    sta PPUDATA
-    bit PPUSTATUS
-    lda #$23
-    sta PPUADDR
-    lda #$E0            ; セリフ行 (attr 行4 全体)
+    lda #$C8            ; 行4-7 (顔 + 横のセリフ) をパレット1に
     sta PPUADDR
     ldx #0
     lda #$55
@@ -148,7 +140,7 @@ draw_round_bg:
     asl
     asl                 ; *32
     clc
-    adc #14
+    adc #6              ; 顔は左寄せ (列6-9)
     sta PPUADDR
     txa
     asl
@@ -165,16 +157,16 @@ draw_round_bg:
     inx
     cpx #3
     bne @face_rows
-    ; セリフ (行17, 中央寄せは左7列固定)
+    ; セリフ (顔の右横: 行5, 列12〜)
     ldx current_stage
     lda round_dlg_lo,x
     sta text_ptr
     lda round_dlg_hi,x
     sta text_ptr+1
     bit PPUSTATUS
-    lda #$22
+    lda #$20
     sta PPUADDR
-    lda #$27            ; $2000 + 17*32 + 7
+    lda #$AC            ; $2000 + 5*32 + 12
     sta PPUADDR
     ldy #0
 @dlg:
