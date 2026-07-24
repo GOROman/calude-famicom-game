@@ -204,6 +204,8 @@ show_title:
     sta blink_timer
     lda #$A5            ; LFSR シード
     sta rng
+    lda #$70            ; パレットフェードインから開始
+    sta fade_amt
     lda #0
     lda #1
     jsr set_chr_bank
@@ -263,6 +265,23 @@ show_title:
 :   sta OAM_BUF,x
     inx
     bne :-
+    ; ---- ビルド情報 (Git リビジョン + ビルド日) を最下行 (行29) へ ----
+    bit PPUSTATUS
+    lda #$23
+    sta PPUADDR
+    lda #$A1            ; $2000 + 29*32 + 1
+    sta PPUADDR
+    ldx #0
+@binfo:
+    lda build_info_txt,x
+    cmp #$FF
+    beq @binfo_done
+    tay
+    lda mini_font_map,y
+    sta PPUDATA
+    inx
+    bne @binfo
+@binfo_done:
     lda #TITLE_SPR0_Y
     sta OAM_BUF+0
     lda #254            ; ソリッドタイル
@@ -398,6 +417,16 @@ update_title:
 @exit_draw:
     jmp @draw_eyes
 @no_exit:
+    lda fade_amt        ; タイトル表示フェードイン (8Fごとに1段明るく)
+    beq @fadein_done
+    lda frame_count
+    and #7
+    bne @fadein_done
+    lda fade_amt
+    sec
+    sbc #$10
+    sta fade_amt
+@fadein_done:
     ; ↓ でカーソル移動
     lda buttons
     and #BTN_DOWN
@@ -484,10 +513,13 @@ update_title:
     inx
     cpx #32
     bne :-
-    lda title_exit      ; 退場演出: ウィンク (手前の目だけ閉じ)
+    lda fade_amt        ; フェード中 (イン/アウト共) はカーソルも目も非表示
+    beq :+
+    lda #$FF
+    sta OAM_BUF+4
+    bne @eyes_done      ; 常に分岐
+:   lda title_exit      ; 退場演出: ウィンク (手前の目だけ閉じ)
     beq @by_phase
-    lda fade_amt
-    bne @eyes_done      ; フェードが始まったらスプライトも消す
     ldx #0
 :   lda title_eye_spr,x
     sta OAM_BUF+8,x
@@ -538,6 +570,7 @@ update_title:
     beq @done           ; OPTION は未実装 (飾り)
     lda #1
     sta title_exit
+    jsr sfx_start       ; 開始ジングル
     rts
 
 @go_selected:
@@ -662,6 +695,8 @@ update_state:
     sta game_state
     lda #STATE_TIME_OVER
     sta state_timer
+    lda #0              ; ゲームオーバージングル (三角波) の頭出し
+    sta snd_tick
     rts
 @to_reset:
     jmp reset
@@ -829,7 +864,7 @@ gameover_txt:                           ; GAMEOVER (1行, 8スプライト制限
     .byte 100,$AF,128, 100,$B6,136, 100,$A5,144, 100,$B2,152
     .byte 0
 ; ---- タイトル画面のデータ ----
-chr_bank_tbl:      .byte 0, 1          ; CNROM バンク書込先 (値=内容でバス競合回避)
+chr_bank_tbl:      .byte 0, 1, 2, 3    ; CNROM バンク書込先 (値=内容でバス競合回避)
 title_spr_palette:                     ; カーソル用 (白)
     .byte $0F,$0F,$0F,$30
     .byte $0F,$0F,$0F,$30
