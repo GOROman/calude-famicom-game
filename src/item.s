@@ -148,9 +148,12 @@ draw_items:
 update_coins:
     lda player_y        ; 縦: コイン行22 (y176-183) と重なるか
     cmp #184
-    bcs @done
-    cmp #145
-    bcc @done
+    bcc :+
+    jmp @done
+:   cmp #145
+    bcs :+
+    jmp @done
+:
     lda world_x_lo      ; メタ列 = (プレイヤー中心 x) >> 4
     clc
     adc #8
@@ -199,6 +202,21 @@ update_coins:
     sta coin_tens
     sta coin_ones
 @count_ok:
+    lda coin_ones       ; 30枚ごとに 1UP!
+    bne @no_1up
+    lda coin_tens
+    beq @no_1up
+    lda coin_tens
+    cmp #3
+    beq @give_1up
+    cmp #6
+    beq @give_1up
+    cmp #9
+    bne @no_1up
+@give_1up:
+    inc lives
+    jsr sfx_defeat      ; 1UP ジングル (撃破アルペジオ流用)
+@no_1up:
     lda #2              ; コイン = 200点
     jsr add_score
     jsr sfx_coin

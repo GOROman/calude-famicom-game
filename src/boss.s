@@ -86,11 +86,19 @@ update_boss:
     bcc @airborne
     dec boss_timer
     bne @collisions
-    lda #40             ; 次のジャンプまでの間隔
+    lda boss_hp         ; 凶暴化: 間隔 = 12 + HP*4 (HP8=44F → HP1=16F)
+    asl
+    asl
+    clc
+    adc #12
     sta boss_timer
-    lda #$FD            ; 跳ぶ (-3.0)
-    sta boss_vy_hi
-    lda #0
+    lda #$FD            ; 跳ぶ (-3.0, 怒り時 -3.75)
+    ldy boss_hp
+    cpy #4
+    bcs :+
+    lda #$FC            ; HP3以下は高く速く
+:   sta boss_vy_hi
+    lda #$40
     sta boss_vy_lo
     dec boss_y          ; 空中判定に入れる
     jmp @collisions
@@ -117,22 +125,34 @@ update_boss:
     sta boss_vy_hi
     jmp @collisions
 @chase:
-    ; 空中ではプレイヤーの方向へ 1px/F
+    ; 空中ではプレイヤーの方向へ (通常1px/F, HP3以下は2px/F)
+    lda #1
+    sta tmp3
+    lda boss_hp
+    cmp #4
+    bcs @chase_go
+    inc tmp3
+@chase_go:
     lda world_x_lo
     sec
     sbc boss_xlo
     lda world_x_hi
     sbc boss_xhi
     bmi @move_left
-    inc boss_xlo        ; 右へ
-    bne @collisions
+    lda boss_xlo        ; 右へ
+    clc
+    adc tmp3
+    sta boss_xlo
+    bcc @collisions
     inc boss_xhi
     jmp @collisions
 @move_left:
     lda boss_xlo
-    bne :+
+    sec
+    sbc tmp3
+    sta boss_xlo
+    bcs @collisions
     dec boss_xhi
-:   dec boss_xlo
 
 @collisions:
     ; ---- 矢との判定 (2スロット) ----

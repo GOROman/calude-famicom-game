@@ -189,6 +189,7 @@ update_player:
     sta player_y_sub
     sta vel_y_lo
     sta vel_y_hi
+    sta stomp_chain     ; 着地で踏みコンボ終了
     lda #1
     sta on_ground
     jmp @done
