@@ -227,7 +227,7 @@ show_title:
     inx
     cpx #16
     bne :-
-    bit PPUSTATUS       ; スプライトパレット1 = 顔の肌/茶 (目パチ用)
+    bit PPUSTATUS       ; スプライトパレット1/2 = 目パチ用 (肌/茶/白, 肌/茶/黒)
     lda #$3F
     sta PPUADDR
     lda #$15
@@ -236,7 +236,7 @@ show_title:
 :   lda title_eye_pal,x
     sta PPUDATA
     inx
-    cpx #3
+    cpx #7
     bne :-
     ; ネームテーブル+属性 1024B を $2000 へ一括転送
     bit PPUSTATUS

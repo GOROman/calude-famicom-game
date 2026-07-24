@@ -5,65 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>目パチエディタ — 狩人行動</title>
 <style>
-body { background:#1a1a24; color:#eee; font-family:monospace; margin:16px; }
-h1 { font-size:18px; } h2 { font-size:14px; color:#aaa; }
-.row { display:flex; gap:24px; flex-wrap:wrap; }
+html,body { height:100%; }
+body { background:#1a1a24; color:#eee; font-family:monospace; margin:0; padding:8px 12px; box-sizing:border-box;
+       display:flex; flex-direction:column; gap:6px; overflow:hidden; }
+h1 { font-size:16px; margin:0; white-space:nowrap; }
+h2 { font-size:12px; color:#aaa; margin:4px 0 2px; }
+.topbar { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.row { display:flex; gap:16px; flex:1; min-height:0; }
+.left { display:flex; flex-direction:column; gap:4px; }
+.right { display:flex; flex-direction:column; gap:4px; width:340px; min-width:300px; }
 canvas { image-rendering:pixelated; border:1px solid #555; background:#000; }
-.tools button, .tabs button { font-family:monospace; margin:2px; padding:6px 10px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; }
+.tools button, .tabs button, .right button, label.filebtn { font-family:monospace; margin:1px; padding:4px 8px; background:#333; color:#eee; border:1px solid #666; cursor:pointer; font-size:12px; }
 .tools button.sel, .tabs button.sel { background:#5a4; border-color:#8f8; }
-#exp { width:100%; height:120px; background:#111; color:#9f9; font-size:11px; }
-.note { color:#888; font-size:12px; }
-.sw { display:inline-block; width:14px; height:14px; vertical-align:middle; border:1px solid #999; margin-right:4px; }
+#exp { width:100%; flex:1; min-height:60px; background:#111; color:#9f9; font-size:10px; box-sizing:border-box; }
+.note { color:#888; font-size:11px; line-height:1.5; }
+.sw { display:inline-block; width:12px; height:12px; vertical-align:middle; border:1px solid #999; margin-right:3px; }
 </style>
 </head>
 <body>
-<h1>目パチエディタ <span class="note">— タイトル画面の目スプライト (閉じ目/半目/白目) を編集</span></h1>
+<div class="topbar">
+  <h1>👁 目パチエディタ</h1>
+  <span class="tabs">
+    <button id="tab-closed" class="sel" onclick="setLayer('closed')">閉じ目 [Q]</button>
+    <button id="tab-half" onclick="setLayer('half')">半目 [W]</button>
+    <button id="tab-white" onclick="setLayer('white')">白目 [E]</button>
+  </span>
+  <span class="tools">
+    <button id="c-S" class="sel" onclick="setColor('S')"><span class="sw" style="background:#e4c490"></span>肌[1]</button>
+    <button id="c-B" onclick="setColor('B')"><span class="sw" style="background:#783c00"></span>茶[2]</button>
+    <button id="c-W" onclick="setColor('W')"><span class="sw" style="background:#ecefec"></span>白[3]</button>
+    <button id="c-K" onclick="setColor('K')"><span class="sw" style="background:#111;border-color:#fff"></span>黒[4]</button>
+    <button id="c-." onclick="setColor('.')"><span class="sw" style="background:repeating-linear-gradient(45deg,#333,#333 3px,#555 3px,#555 6px)"></span>消す[5]</button>
+    <button onclick="copyLayer()">コピー[C]</button>
+    <button onclick="pasteLayer()" id="pastebtn" disabled>ペースト[V]</button>
+    <button onclick="clearLayer()">全消去</button>
+  </span>
+</div>
 <div class="row">
-  <div>
-    <div class="tabs">
-      レイヤー:
-      <button id="tab-closed" class="sel" onclick="setLayer('closed')">閉じ目</button>
-      <button id="tab-half" onclick="setLayer('half')">半目</button>
-      <button id="tab-white" onclick="setLayer('white')">白目 (開き目)</button>
-    </div>
-    <div class="tools">
-      ペン:
-      <button id="c-S" class="sel" onclick="setColor('S')"><span class="sw" style="background:#e4c490"></span>肌</button>
-      <button id="c-B" onclick="setColor('B')"><span class="sw" style="background:#783c00"></span>茶</button>
-      <button id="c-W" onclick="setColor('W')"><span class="sw" style="background:#ecefec"></span>白</button>
-      <button id="c-." onclick="setColor('.')"><span class="sw" style="background:#000"></span>消す</button>
-      <button onclick="clearLayer()">レイヤー全消去</button>
-      <button onclick="copyLayer()">レイヤーコピー</button>
-      <button onclick="pasteLayer()" id="pastebtn" disabled>ペースト</button>
-    </div>
+  <div class="left">
     <canvas id="ed" width="624" height="480"></canvas>
-    <div class="note">クリック/ドラッグで描画。グリッド太線 = 8px タイル境界。背景はタイトル画像 (編集不可)。<br>
-    ⌨ <b>1/2/3/4</b>=肌/茶/白/消す ・ <b>カーソルキー</b>=カーソル移動 ・ <b>スペース</b>=ドットを打つ ・ <b>DELETE/BS</b>=黒(消去) ・
-    <b>Q/W/E</b>=閉じ目/半目/白目 ・ <b>C</b>=レイヤーコピー <b>V</b>=ペースト</div>
+    <div class="note">クリック/ドラッグ描画 ・ 太線=8pxタイル境界 ・ ⌨ <b>1-5</b>=色(肌/茶/白/黒/消す) <b>←↑↓→</b>=カーソル <b>スペース</b>=打点 <b>DEL/BS</b>=黒 <b>Q/W/E</b>=レイヤー <b>C/V</b>=コピペ</div>
   </div>
-  <div>
-    <h2>プレビュー (実機と同じシーケンス)</h2>
-    <canvas id="pv" width="312" height="240"></canvas><br>
-    <button onclick="togglePreview()" id="pvbtn">▶ 再生</button>
-    <button onclick="setState(0)">開</button>
-    <button onclick="setState(1)">半</button>
-    <button onclick="setState(2)">閉</button>
+  <div class="right">
+    <h2>プレビュー (実機同等シーケンス)</h2>
+    <canvas id="pv" width="312" height="240"></canvas>
+    <div>
+      <button onclick="togglePreview()" id="pvbtn">▶ 再生</button>
+      <button onclick="setState(0)">開</button>
+      <button onclick="setState(1)">半</button>
+      <button onclick="setState(2)">閉</button>
+    </div>
     <h2>書き出し / セーブ・ロード</h2>
-    <button onclick="doExport()">JSON 書き出し</button>
-    <button onclick="copyExp()">コピー</button>
-    <button onclick="saveJson()">💾 セーブ (blink.json)</button>
-    <label style="background:#333;border:1px solid #666;padding:6px 10px;cursor:pointer">📂 ロード<input type="file" id="loadfile" accept=".json" style="display:none" onchange="loadFile(this)"></label>
-    <button onclick="loadFromText()">テキスト欄から読込</button>
-    <div class="note">JSON を tools/apply_blink.py に渡すとアセットへ反映されます。<br>
-    タイル上限: 全レイヤー合計 16 枚 / 各状態スプライト 8 枚まで。</div>
+    <div>
+      <button onclick="doExport()">JSON書き出し</button>
+      <button onclick="copyExp()">コピー</button>
+      <button onclick="saveJson()">💾セーブ</button>
+      <label class="filebtn">📂ロード<input type="file" id="loadfile" accept=".json" style="display:none" onchange="loadFile(this)"></label>
+      <button onclick="loadFromText()">テキスト欄から読込</button>
+    </div>
     <textarea id="exp" placeholder="ここに JSON を貼り付けて「テキスト欄から読込」も可"></textarea>
     <div id="stat" class="note"></div>
+    <div class="note">JSON を tools/apply_blink.py に渡すとアセットへ反映 (タイル16枚/各状態8スプライトまで)</div>
   </div>
 </div>
 <script>
 const DATA = {"region": {"x": 172, "y": 44, "w": 52, "h": 40}, "bg": "iVBORw0KGgoAAAANSUhEUgAAADQAAAAoCAIAAAA+Dk5cAAADV0lEQVR4nK2YvW7bMBCAaaND5iJTIQSGJ4+dMhR6hIyeijxABg+Ch4CPIHQINHjwA3js4Icg+gCdMgWGIWQSPHcs6HPOpyOPPNk5GAFDHnUf74ekNDIxWU8nu287Y0ztev22NJP30xBI7XxnWuAh6+nEGPP05udmp4CMzRChZJP3CSOrHV8MiC39D7AGyTjhNtZpS0P7n952SEaZEojIF1UI5UtWQwqlJT6DNgsWENAFrKcT6r9sSoyiNJ8ldRB3W/bclrYVCavS5xoB2/DAqJ9waEBBSHkjSZ1UBm+FaSC5MwPXukZaZcJ8QtIKUvJF4FrXrGyVMnVF9CWOaKw4nC2NhuyCMopWdHouh1vUTcJAerROBi6bGKHCWCJY1A1rGNNzqo2lkWQ+3AJZTUT914NrXYMEK1shSiLQdZ+mdY3ER6syUW10+khZCjiHrbh1TVFW0XNMchi6TVJGhXFYCtLSwa/R/vpYa/hQ3IlC84nko+uH9hkOEyvMBsbBpCir1jWADnxF6ReJPey8wnM5W+BnuLTbpCUWRzKaDOiblfVD2El/2YfzsGalKCtACdewqH3mhWagk11hEjsLO8p6cKE2fSjGjvJhELEf/2KDOgP7E4JGB3gONheIYBvYYP+urHdz9CEaW7wg0nrg7UXt3YAGoIZYyHDUlmb+ozc0Wx4D93NujNnei+a2915ze6+4CcMEasZTCgcao2l+iRF8fckYfX1Rh/X3n1MjXf/NkebKuzRynz3HXlIkA6BWfJStpICjYZJt9oUGcbaMhTW8tVJ70a2fCoPWvNhKIoY1ehJAkg2yRzWzeaaCY2czQ2mdv0RlN4Xq+bTvsHXOlnksWEbKc7iPX3Yjb+RS1fCp9rnw8AFJ34pRJ1yYPrgZOMRKJNmKXEvDIWxTSg1ffp9j7pEgFoEXgVi69yolA8dowFj1XGniG26cNw8Ofxo41fEVbiiNQieU+V//iQ5ko7AV+ZDDRHo/MLGLO2KFHxy8/r6FE+Lx7tS4Fg6NZd8tio/befYticrjXStRauEYn40dYhqsmwdHg8uEUQ6AA+kOXfX9H31Qd+h8lRw7JXsQR40C5RsMR9Ol+zwsTEQ6dLnnjCzMkl7oxM2+GADXHbrbr7eDYqT0nzT6H2czJaV03e07AAAAAElFTkSuQmCC", "layers": {"closed": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "..........................SSSSS.....................", "........................SS.S..SS....................", ".........................SS.S..SSS..................", ".........................SSSSS..SS..................", "........................SSSSSSSSS...................", "........................S.S.S..S.S..................", "...........SSSSSS.......B.S.SSSS.B..................", "...........SSSS.SS......BBBSSSSSBB..................", "...........SSSS.SS.......BBBBBBBBS..................", "...........BSSS.BB.........BBBBB.S..................", "...........BBBBBBB.........SS...SS..................", "...........SBBBBSS..................................", "...........SSSS..S..................................", "...........SSSS.....................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."], "half": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "..........................SSSSS.....................", "........................SS.S..SS....................", ".........................SS.S..SSS..................", ".........................SSSSS..SS..................", "........................BSSSSSSSSB..................", "........................BBBBS..BBB..................", "...........SSSSSS........BBBBBBBBS..................", "...........BSSS.BB..........BBB.....................", "...........BBBBBBB..................................", "............BBBB....................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."], "white": ["....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "............................W.......................", "........................W.....W.....................", "........................W......W....................", "....................................................", ".........................W.W.WW.W...................", "........................WW.W....W...................", "...............W........WW......W...................", "...............W........WW.....WW...................", "...............W........WWW....WW...................", "...............W........WWW..WWW....................", "..............WW....................................", "...............WW...................................", "...............WWW..................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "....................................................", "...................................................."]}};
 const RW=DATA.region.w, RH=DATA.region.h, Z=12;
-const COLORS={'S':'#e4c490','B':'#783c00','W':'#ecefec'};
+const COLORS={'S':'#e4c490','B':'#783c00','W':'#ecefec','K':'#0a0a0a'};
 let layers={};
 for(const k in DATA.layers) layers[k]=DATA.layers[k].map(r=>r.split(''));
 let cur='closed', pen='S', drawing=false;
@@ -110,7 +118,7 @@ function clearLayer(){ layers[cur]=Array.from({length:RH},()=>Array(RW).fill('.'
 
 // ---- タイル使用量 ----
 function packTiles(){
-  const tiles=new Set(); let sprs={};
+  const tiles=new Set(); let sprs={}; let conflicts=0;
   for(const k in layers){
     const g=layers[k]; const boxes=[]; const covered=Array.from({length:RH},()=>Array(RW).fill(false));
     for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){
@@ -125,15 +133,18 @@ function packTiles(){
       for(let yy=0;yy<8;yy++)for(let xx=0;xx<8;xx++)
         t+=(by+yy<RH&&bx+xx<RW)?g[by+yy][bx+xx]:'.';
       tiles.add(t);
+      if(t.includes('W')&&t.includes('K')) conflicts++;
     }
   }
-  return {tiles:tiles.size, sprs};
+  return {tiles:tiles.size, sprs, conflicts};
 }
 function stat(){
   const p=packTiles();
   const over=p.tiles>16||Object.values(p.sprs).some(v=>v>8);
   document.getElementById('stat').innerHTML=
-    `タイル ${p.tiles}/16 ・ スプライト 閉${p.sprs.closed||0} 半${p.sprs.half||0} 白${p.sprs.white||0} (各8まで)`+(over?' <b style="color:#f66">⚠ 上限超過</b>':' ✓');
+    `タイル ${p.tiles}/16 ・ スプライト 閉${p.sprs.closed||0} 半${p.sprs.half||0} 白${p.sprs.white||0} (各8まで)`
+    +(over?' <b style="color:#f66">⚠ 上限超過</b>':' ✓')
+    +(p.conflicts?` <b style="color:#f66">⚠ 白と黒が同じ8pxタイルに同居 (${p.conflicts}件)</b>`:'');
 }
 
 // ---- プレビュー ----
@@ -216,7 +227,8 @@ window.addEventListener('keydown',e=>{
   if(k==='1') setColor('S');
   else if(k==='2') setColor('B');
   else if(k==='3') setColor('W');
-  else if(k==='4') setColor('.');
+  else if(k==='4') setColor('K');
+  else if(k==='5') setColor('.');
   else if(k==='ArrowLeft')  cx=Math.max(0,cx-1);
   else if(k==='ArrowRight') cx=Math.min(RW-1,cx+1);
   else if(k==='ArrowUp')    cy=Math.max(0,cy-1);

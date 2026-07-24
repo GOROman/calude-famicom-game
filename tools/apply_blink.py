@@ -6,7 +6,7 @@
 import re, sys, json, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/'
 FREED = [206,100,232,224,251,172,179,181,21,203,242,204,177,215,194,229]
-CHARV = {'.':0,'S':1,'B':2,'W':3}
+CHARV = {'.':0,'S':1,'B':2,'W':3,'K':3}   # W/K はどちらも色3 (パレットで白/黒に分かれる)
 
 data = json.load(open(sys.argv[1]))
 RX,RY = data['region']['x'], data['region']['y']
@@ -22,15 +22,17 @@ for name in ('closed','half','white'):
     for y in range(RH):
         for x in range(RW):
             if g[y][x]!='.' and not covered[y][x]:
-                t=[]
+                t=[]; chs=set()
                 for yy in range(8):
                     for xx in range(8):
                         c=g[y+yy][x+xx] if y+yy<RH and x+xx<RW else '.'
-                        t.append(CHARV[c])
+                        t.append(CHARV[c]); chs.add(c)
                         if y+yy<RH and x+xx<RW: covered[y+yy][x+xx]=True
-                t=tuple(t)
-                if t not in tiles: tiles.append(t)
-                sprs.append((RY+y-1, tiles.index(t), RX+x))   # OAM y = top-1
+                assert not ('W' in chs and 'K' in chs), f'{name}: ({RX+x},{RY+y}) のタイルに白と黒が同居'
+                pal = 2 if 'K' in chs else 1          # 黒入りタイルはスプライトパレット2
+                key=(tuple(t), pal)
+                if key not in tiles: tiles.append(key)
+                sprs.append((RY+y-1, tiles.index(key), RX+x, pal))   # OAM y = top-1
     assert len(sprs)<=8, f'{name}: スプライト {len(sprs)} 枚 (8まで)'
     tables[name]=sprs
 assert len(tiles)<=len(FREED), f'タイル {len(tiles)} 枚 (16まで)'
@@ -51,7 +53,7 @@ def parse_bytes(text):
     return out
 chrb=parse_bytes(open(ROOT+'assets/title_chr.s').read())
 assert len(chrb)==8192
-for k,t in enumerate(tiles):
+for k,(t,_pal) in enumerate(tiles):
     tid=FREED[k]
     p0=[];p1=[]
     for y in range(8):
@@ -71,7 +73,7 @@ open(ROOT+'assets/title_chr.s','w').write('\n'.join(lines)+'\n')
 # ---- title_screen.s: TITLE_EYE ブロックを差し替え ----
 scr=open(ROOT+'assets/title_screen.s').read()
 def tbl(sp):
-    return ','.join(f'${(y&255):02X},${FREED[t]:02X},$01,${x:02X}' for (y,t,x) in sp)
+    return ','.join(f'${(y&255):02X},${FREED[t]:02X},${p:02X},${x:02X}' for (y,t,x,p) in sp)
 block=(f'TITLE_EYE_N   = {len(tables["closed"])}\n'
        f'TITLE_EYE_HN  = {len(tables["half"])}\n'
        f'TITLE_EYE_ON  = {len(tables["white"])}\n'
@@ -83,8 +85,8 @@ block=(f'TITLE_EYE_N   = {len(tables["closed"])}\n'
        '    .byte '+tbl(tables['half'])+'\n'
        'title_eye_open:      ; 白目 (開き目で常時表示)\n'
        '    .byte '+tbl(tables['white'])+'\n'
-       'title_eye_pal:       ; 肌/茶/白 (スプライトパレット1)\n'
-       '    .byte $37,$17,$30\n')
+       'title_eye_pal:       ; パレット1=肌/茶/白, パレット2=肌/茶/黒 ($3F15-$3F1B)\n'
+       '    .byte $37,$17,$30,$0F,$37,$17,$0F\n')
 i=scr.index('TITLE_EYE_N')
 j=scr.index('title_eye_pal:')
 j=scr.index('\n', scr.index('.byte', j))+1
