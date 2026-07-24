@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHR-ROM エディタ (狩人行動)</title>
+<style>
+  :root { --red:#8b1a1a; --cream:#f5e9d0; --gold:#ffd700; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#1a1a1a; color:var(--cream); font-family:'Hiragino Kaku Gothic ProN', ui-sans-serif, sans-serif; }
+  header { background:var(--red); padding:10px 16px; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { font-size:12px; opacity:.85; }
+  header .sub a { color:#ffd0a0; }
+  main { padding:16px; display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  .panel { background:#242424; border:2px solid #444; border-radius:8px; padding:12px; }
+  h2 { font-size:14px; margin:0 0 8px; }
+  canvas { image-rendering:pixelated; display:block; }
+  #sheet { border:2px solid #555; cursor:pointer; background:#000; }
+  #editor { border:2px solid #555; cursor:crosshair; background:#000; }
+  #animview { border:2px solid #555; background:#000; }
+  .btn { background:var(--red); border:none; color:var(--cream); padding:8px 14px; border-radius:6px;
+         cursor:pointer; font-size:13px; font-weight:bold; box-shadow:0 2px 0 #5d0f0f; }
+  .btn:active { transform:translateY(2px); box-shadow:none; }
+  .btn.sm { padding:5px 10px; font-size:12px; }
+  .btnrow { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  .tab { background:#333; border:1px solid #555; color:#bbb; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; }
+  .tab.on { background:var(--red); color:var(--cream); border-color:var(--red); font-weight:bold; }
+  .palrow { display:flex; gap:4px; align-items:center; padding:4px; border:2px solid transparent; border-radius:6px; cursor:pointer; }
+  .palrow.on { border-color:var(--gold); background:#2e2a1a; }
+  .palrow .name { font-size:11px; width:86px; color:#bbb; }
+  .sw { width:28px; height:28px; border:2px solid #666; border-radius:4px; position:relative;
+        font-size:9px; font-family:ui-monospace,monospace; color:#fff; text-shadow:0 0 3px #000;
+        display:flex; align-items:flex-end; justify-content:center; }
+  .sw.cur { border-color:var(--gold); }
+  .sw .key { position:absolute; top:-1px; left:2px; color:#ffd700; }
+  #nespicker { display:none; grid-template-columns:repeat(16, 20px); gap:2px; margin-top:8px; }
+  #nespicker div { width:20px; height:20px; border:1px solid #333; cursor:pointer; }
+  #frames { display:flex; flex-wrap:wrap; gap:4px; margin:8px 0; min-height:36px; }
+  #frames canvas { border:2px solid #555; border-radius:4px; cursor:pointer; }
+  .note { font-size:11px; color:#aaa; margin-top:6px; line-height:1.7; }
+  .note b, kbd { color:var(--gold); }
+  kbd { background:#333; border:1px solid #555; border-radius:4px; padding:0 5px; font-family:ui-monospace,monospace; font-size:11px; }
+  #status { font-family:ui-monospace,monospace; font-size:12px; color:#9fdf9f; margin-top:8px; min-height:16px; }
+  label { font-size:12px; }
+  input[type=range] { vertical-align:middle; }
+  input[type=file] { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CHR-ROM エディタ</h1>
+  <span class="sub">NES の CHR (タイルグラフィック) をドット単位で編集して .nes / .chr に書き出し —
+    <a href="../../editor/">ステージエディタ</a> /
+    <a href="../png2chr/">png2chr</a> /
+    <a href="https://github.com/GOROman/calude-famicom-game">GitHub</a></span>
+</header>
+<main>
+
+  <div class="panel">
+    <h2>タイル一覧 (256枚 / ページ)</h2>
+    <div class="btnrow" id="pages"></div>
+    <canvas id="sheet" width="128" height="128" style="width:384px; height:384px"></canvas>
+    <div class="note" id="tileinfo"></div>
+  </div>
+
+  <div class="panel">
+    <h2>ドット編集 <span id="curtile" style="color:var(--gold)"></span></h2>
+    <canvas id="editor" width="8" height="8" style="width:320px; height:320px"></canvas>
+    <div class="btnrow" style="align-items:center">
+      <canvas id="mini" width="8" height="8" style="width:32px; height:32px; border:1px solid #555"></canvas>
+      <button class="btn sm" id="undo">↩ UNDO (Z)</button>
+      <button class="btn sm" id="cleartile">タイルクリア</button>
+    </div>
+    <h2 style="margin-top:10px">パレット</h2>
+    <div id="pals"></div>
+    <div class="note">スウォッチを<b>ダブルクリック</b>で NES 64色から色変更</div>
+    <div id="nespicker"></div>
+    <div class="note">
+      <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> 色選択 (<b>1 = 色0 = 透明</b>) /
+      <kbd>↑↓←→</kbd> カーソル移動 / <kbd>SPACE</kbd> 色を置く<br>
+      マウス: 左ドラッグで描画、<kbd>Shift</kbd>+クリックでスポイト / <kbd>Cmd/Ctrl+Z</kbd> UNDO
+    </div>
+  </div>
+
+  <div class="panel" style="min-width:280px">
+    <h2>セーブ・ロード</h2>
+    <div class="btnrow">
+      <button class="btn sm" id="save-ls">💾 セーブ (ブラウザ)</button>
+      <button class="btn sm" id="load-ls">📂 ロード (ブラウザ)</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn sm" id="dl-chr">⬇ .chr 書き出し</button>
+      <button class="btn sm" id="dl-nes">⬇ .nes 書き出し</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn sm" id="load-file">📂 ファイル読込 (.chr / .nes)</button>
+      <input type="file" id="filein" accept=".chr,.nes">
+    </div>
+    <div class="note">.nes 書き出しは base.nes の CHR を差し替えた ROM。
+      <a href="https://goroman.github.io/cluade-famicom-emu/">cluade-famicom-emu</a> にドロップして遊べます</div>
+    <div id="status"></div>
+
+    <h2 style="margin-top:16px">アニメーションチェック</h2>
+    <canvas id="animview" width="16" height="16" style="width:128px; height:128px"></canvas>
+    <div class="btnrow" style="align-items:center">
+      <button class="btn sm" id="addframe">＋ 現在のタイル</button>
+      <button class="btn sm" id="playanim">▶ 再生</button>
+      <button class="btn sm" id="clearanim">✕ 全消し</button>
+    </div>
+    <label><input type="checkbox" id="anim16"> 16x16 (右・下・右下のタイルも合成)</label><br>
+    <label>速度: <input type="range" id="fps" min="1" max="30" value="8"> <span id="fpsval">8</span> fps</label>
+    <div id="frames"></div>
+    <div class="note">「＋現在のタイル」でコマ追加。コマをクリックで削除</div>
+  </div>
+
+</main>
+<script>
+'use strict';
+// NES マスターパレット (2C02, 64色)
+const NES_PAL = [
+ [84,84,84],[0,30,116],[8,16,144],[48,0,136],[68,0,100],[92,0,48],[84,4,0],[60,24,0],
+ [32,42,0],[8,58,0],[0,64,0],[0,60,0],[0,50,60],[0,0,0],[0,0,0],[0,0,0],
+ [152,150,152],[8,76,196],[48,50,236],[92,30,228],[136,20,176],[160,20,100],[152,34,32],[120,60,0],
+ [84,90,0],[40,114,0],[8,124,0],[0,118,40],[0,102,120],[0,0,0],[0,0,0],[0,0,0],
+ [236,238,236],[76,154,236],[120,124,236],[176,98,236],[228,84,236],[236,88,180],[236,106,100],[212,136,32],
+ [160,170,0],[116,196,0],[76,208,32],[56,204,108],[56,180,204],[60,60,60],[0,0,0],[0,0,0],
+ [236,238,236],[168,204,236],[188,188,236],[212,178,236],[236,174,236],[236,174,212],[236,180,176],[228,196,144],
+ [204,210,120],[180,222,120],[168,226,144],[152,226,180],[160,214,228],[160,162,160],[0,0,0],[0,0,0]];
+
+// ゲーム実機パレット (src/ppu.s palette_data より)
+const PALETTES = [
+  { name:'BG0 城/空',      col:[0x0F,0x01,0x16,0x37] },
+  { name:'BG1 顔/セリフ',  col:[0x0F,0x37,0x17,0x18] },
+  { name:'SP0 少女狩人',   col:[0x0F,0x17,0x25,0x36] },
+  { name:'SP1 決意マン',   col:[0x0F,0x12,0x27,0x30] },
+  { name:'SP2 パタパタ',   col:[0x0F,0x09,0x2A,0x30] },
+  { name:'SP3 石化',       col:[0x0F,0x00,0x10,0x20] },
+  { name:'グレースケール', col:[0x0F,0x2D,0x10,0x30] },
+];
+
+const $ = id => document.getElementById(id);
+const status_ = msg => { $('status').textContent = msg; };
+const rgb = nes => `rgb(${NES_PAL[nes][0]},${NES_PAL[nes][1]},${NES_PAL[nes][2]})`;
+
+let chr = new Uint8Array(0x4000);   // CHR 16KB (バンク0=ゲーム, バンク1=タイトル)
+let romBuf = null, chrOff = 0;      // base.nes とその CHR オフセット
+let page = 0;                       // 0-3 (パターンテーブル 4KB 単位)
+let tile = 0;                       // 選択中タイル (グローバル番号 0-1023)
+let palIdx = 2, color = 3;          // 選択パレット / 描画色 (0-3)
+let cur = { x:0, y:0 };             // キーボードカーソル
+let undoStack = [];                 // { tile, data:Uint8Array(16) }
+let frames = [], playing = false, animTimer = null, animPos = 0;
+
+const PAGE_NAMES = ['バンク0 BG', 'バンク0 スプライト', 'バンク1 タイトルBG', 'バンク1 タイトルSPR'];
+
+// ---- CHR 読み書き ----
+const pget = (t, x, y) => {
+  const o = t * 16 + y;
+  return ((chr[o] >> (7-x)) & 1) | (((chr[o+8] >> (7-x)) & 1) << 1);
+};
+function pset(t, x, y, v) {
+  const o = t * 16 + y, m = 1 << (7-x);
+  chr[o]   = v & 1 ? chr[o]   | m : chr[o]   & ~m;
+  chr[o+8] = v & 2 ? chr[o+8] | m : chr[o+8] & ~m;
+}
+
+// ---- UNDO ----
+function snapshot() {
+  undoStack.push({ tile, data: chr.slice(tile*16, tile*16+16) });
+  if (undoStack.length > 300) undoStack.shift();
+}
+function undo() {
+  const u = undoStack.pop();
+  if (!u) { status_('UNDO: これ以上戻れません'); return; }
+  chr.set(u.data, u.tile*16);
+  if (u.tile !== tile) { tile = u.tile; page = tile >> 8; renderPages(); }
+  redrawAll();
+  status_('UNDO しました');
+}
+
+// ---- 描画 ----
+const sheet = $('sheet'), sctx = sheet.getContext('2d');
+const editor = $('editor'), ectx = editor.getContext('2d');
+const mini = $('mini'), mctx = mini.getContext('2d');
+const animview = $('animview'), actx = animview.getContext('2d');
+
+function drawTileTo(ctx, t, dx, dy, checker) {
+  const pal = PALETTES[palIdx].col;
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const v = pget(t, x, y);
+    if (v === 0 && checker)
+      ctx.fillStyle = ((x>>1) + (y>>1)) & 1 ? '#2a2a2a' : '#3a3a3a';
+    else
+      ctx.fillStyle = rgb(pal[v]);
+    ctx.fillRect(dx+x, dy+y, 1, 1);
+  }
+}
+
+function drawSheet() {
+  const base = page * 256;
+  for (let i = 0; i < 256; i++)
+    drawTileTo(sctx, base + i, (i & 15) * 8, (i >> 4) * 8, false);
+  // 選択枠
+  const i = tile - base;
+  if (i >= 0 && i < 256) {
+    sctx.strokeStyle = '#ffd700';
+    sctx.lineWidth = 1;
+    sctx.strokeRect((i & 15) * 8 + .5, (i >> 4) * 8 + .5, 7, 7);
+  }
+}
+
+function drawEditor() {
+  drawTileTo(ectx, tile, 0, 0, true);
+  // カーソル
+  ectx.strokeStyle = '#ffd700';
+  ectx.lineWidth = 0.2;
+  ectx.strokeRect(cur.x + .1, cur.y + .1, .8, .8);
+  drawTileTo(mctx, tile, 0, 0, true);
+  $('curtile').textContent =
+    `— タイル $${(tile & 255).toString(16).padStart(2,'0').toUpperCase()} (${PAGE_NAMES[page]})`;
+}
+
+function redrawAll() { drawSheet(); drawEditor(); renderFrames(); }
+
+// ---- ページタブ ----
+function renderPages() {
+  const wrap = $('pages');
+  wrap.innerHTML = '';
+  PAGE_NAMES.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === page ? ' on' : '');
+    b.textContent = name;
+    b.onclick = () => { page = i; renderPages(); drawSheet(); };
+    wrap.appendChild(b);
+  });
+}
+
+// ---- パレット UI ----
+function renderPals() {
+  const wrap = $('pals');
+  wrap.innerHTML = '';
+  PALETTES.forEach((p, pi) => {
+    const row = document.createElement('div');
+    row.className = 'palrow' + (pi === palIdx ? ' on' : '');
+    const nm = document.createElement('span');
+    nm.className = 'name'; nm.textContent = p.name;
+    row.appendChild(nm);
+    p.col.forEach((nes, ci) => {
+      const sw = document.createElement('div');
+      sw.className = 'sw' + (pi === palIdx && ci === color ? ' cur' : '');
+      sw.style.background = ci === 0
+        ? 'repeating-conic-gradient(#2a2a2a 0% 25%, #3a3a3a 0% 50%) 0 0 / 12px 12px'
+        : rgb(nes);
+      sw.textContent = '$' + nes.toString(16).padStart(2,'0').toUpperCase();
+      if (pi === palIdx) {
+        const k = document.createElement('span');
+        k.className = 'key'; k.textContent = ci + 1;
+        sw.appendChild(k);
+      }
+      sw.onclick = () => { palIdx = pi; color = ci; renderPals(); redrawAll(); };
+      sw.ondblclick = () => { palIdx = pi; color = ci; renderPals(); openPicker(); };
+      row.appendChild(sw);
+    });
+    row.onclick = e => { if (e.target === row || e.target === nm) { palIdx = pi; renderPals(); redrawAll(); } };
+    wrap.appendChild(row);
+  });
+}
+
+function openPicker() {
+  const pk = $('nespicker');
+  pk.style.display = 'grid';
+  pk.innerHTML = '';
+  for (let i = 0; i < 64; i++) {
+    const d = document.createElement('div');
+    d.style.background = rgb(i);
+    d.title = '$' + i.toString(16).padStart(2,'0').toUpperCase();
+    d.onclick = () => {
+      PALETTES[palIdx].col[color] = i;
+      pk.style.display = 'none';
+      renderPals(); redrawAll();
+    };
+    pk.appendChild(d);
+  }
+}
+
+// ---- タイル一覧クリック ----
+sheet.addEventListener('mousedown', e => {
+  const r = sheet.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * 16);
+  const y = Math.floor((e.clientY - r.top) / r.height * 16);
+  tile = page * 256 + y * 16 + x;
+  cur = { x:0, y:0 };
+  redrawAll();
+});
+
+// ---- エディタ マウス描画 ----
+let drawing = false, strokeSaved = false;
+function edPos(e) {
+  const r = editor.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(7, Math.floor((e.clientX - r.left) / r.width * 8))),
+    y: Math.max(0, Math.min(7, Math.floor((e.clientY - r.top) / r.height * 8))),
+  };
+}
+editor.addEventListener('mousedown', e => {
+  e.preventDefault();
+  const p = edPos(e);
+  cur = p;
+  if (e.shiftKey) {  // スポイト
+    color = pget(tile, p.x, p.y);
+    renderPals(); drawEditor();
+    return;
+  }
+  snapshot(); strokeSaved = true; drawing = true;
+  pset(tile, p.x, p.y, color);
+  redrawAll();
+});
+editor.addEventListener('mousemove', e => {
+  if (!drawing) return;
+  const p = edPos(e);
+  cur = p;
+  pset(tile, p.x, p.y, color);
+  redrawAll();
+});
+window.addEventListener('mouseup', () => { drawing = false; strokeSaved = false; });
+
+// ---- キーボード ----
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  switch (e.key) {
+    case '1': case '2': case '3': case '4':
+      color = +e.key - 1; renderPals(); break;
+    case 'ArrowUp':    e.preventDefault(); cur.y = (cur.y + 7) & 7; drawEditor(); break;
+    case 'ArrowDown':  e.preventDefault(); cur.y = (cur.y + 1) & 7; drawEditor(); break;
+    case 'ArrowLeft':  e.preventDefault(); cur.x = (cur.x + 7) & 7; drawEditor(); break;
+    case 'ArrowRight': e.preventDefault(); cur.x = (cur.x + 1) & 7; drawEditor(); break;
+    case ' ':
+      e.preventDefault();
+      if (pget(tile, cur.x, cur.y) !== color) { snapshot(); pset(tile, cur.x, cur.y, color); redrawAll(); }
+      break;
+    case 'z': case 'Z': undo(); break;
+  }
+});
+
+$('undo').onclick = undo;
+$('cleartile').onclick = () => {
+  snapshot();
+  chr.fill(0, tile*16, tile*16+16);
+  redrawAll();
+  status_('タイルをクリアしました (UNDO 可)');
+};
+
+// ---- セーブ・ロード ----
+const LS_KEY = 'chredit-chr-v1';
+$('save-ls').onclick = () => {
+  let bin = '';
+  for (let i = 0; i < chr.length; i += 4096)
+    bin += String.fromCharCode(...chr.subarray(i, i + 4096));
+  localStorage.setItem(LS_KEY, btoa(bin));
+  status_(`ブラウザに保存しました (${new Date().toLocaleTimeString()})`);
+};
+$('load-ls').onclick = () => {
+  const b64 = localStorage.getItem(LS_KEY);
+  if (!b64) { status_('ブラウザ保存データがありません'); return; }
+  const bin = atob(b64);
+  if (bin.length !== chr.length) { status_('保存データのサイズが不正です'); return; }
+  for (let i = 0; i < bin.length; i++) chr[i] = bin.charCodeAt(i);
+  undoStack = [];
+  redrawAll();
+  status_('ブラウザから読み込みました');
+};
+
+function download(bytes, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type:'application/octet-stream' }));
+  a.download = name;
+  a.click();
+}
+$('dl-chr').onclick = () => { download(chr, 'calude.chr'); status_('calude.chr を書き出しました'); };
+$('dl-nes').onclick = () => {
+  if (!romBuf) { status_('base.nes が未ロードです'); return; }
+  const buf = romBuf.slice();
+  buf.set(chr, chrOff);
+  download(buf, 'calude-chr.nes');
+  status_('calude-chr.nes を書き出しました');
+};
+
+$('load-file').onclick = () => $('filein').click();
+$('filein').addEventListener('change', async () => {
+  const f = $('filein').files[0];
+  if (!f) return;
+  const buf = new Uint8Array(await f.arrayBuffer());
+  loadBytes(buf, f.name);
+  $('filein').value = '';
+});
+
+function chrOffsetOf(buf) {  // iNES ヘッダから CHR 先頭オフセット
+  const trainer = buf[6] & 4 ? 512 : 0;
+  return 16 + trainer + buf[4] * 16384;
+}
+function loadBytes(buf, name) {
+  if (buf[0] === 0x4E && buf[1] === 0x45 && buf[2] === 0x53 && buf[3] === 0x1A) {
+    const off = chrOffsetOf(buf), size = buf[5] * 8192;
+    if (!size) { status_(`${name}: CHR-ROM がありません (CHR-RAM 作品?)`); return; }
+    chr = new Uint8Array(0x4000);
+    chr.set(buf.subarray(off, off + Math.min(size, 0x4000)));
+    status_(`${name} の CHR ${size/1024}KB を読み込みました`);
+  } else if (buf.length % 16 === 0 && buf.length > 0) {
+    chr = new Uint8Array(0x4000);
+    chr.set(buf.subarray(0, Math.min(buf.length, 0x4000)));
+    status_(`${name} (${buf.length} bytes) を読み込みました`);
+  } else {
+    status_(`${name}: 形式を認識できません`);
+    return;
+  }
+  undoStack = []; tile = 0; page = 0;
+  renderPages(); redrawAll();
+}
+
+// ---- アニメーションチェック ----
+function animTiles(t) {
+  return $('anim16').checked ? [t, t+1, t+16, t+17] : [t];
+}
+function drawAnimFrame(ctx, t, scale16) {
+  ctx.clearRect(0, 0, 16, 16);
+  // 透明市松
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    ctx.fillStyle = ((x>>2) + (y>>2)) & 1 ? '#2a2a2a' : '#3a3a3a';
+    ctx.fillRect(x, y, 1, 1);
+  }
+  const pal = PALETTES[palIdx].col;
+  const ts = animTiles(t);
+  ts.forEach((tt, i) => {
+    const dx = scale16 ? (i & 1) * 8 : 4, dy = scale16 ? (i >> 1) * 8 : 4;
+    if (tt >= 1024) return;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const v = pget(tt, x, y);
+      if (v === 0) continue;
+      ctx.fillStyle = rgb(pal[v]);
+      ctx.fillRect(dx+x, dy+y, 1, 1);
+    }
+  });
+}
+function renderFrames() {
+  const wrap = $('frames');
+  wrap.innerHTML = '';
+  frames.forEach((t, i) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 16;
+    c.style.width = c.style.height = '32px';
+    c.style.imageRendering = 'pixelated';
+    if (i === animPos % Math.max(1, frames.length) && playing) c.style.borderColor = '#ffd700';
+    drawAnimFrame(c.getContext('2d'), t, $('anim16').checked);
+    c.title = `コマ ${i+1}: タイル $${(t & 255).toString(16).padStart(2,'0').toUpperCase()} (クリックで削除)`;
+    c.onclick = () => { frames.splice(i, 1); renderFrames(); };
+    wrap.appendChild(c);
+  });
+  if (!playing)
+    drawAnimFrame(actx, frames.length ? frames[0] : tile, $('anim16').checked);
+}
+function tickAnim() {
+  if (!frames.length) return;
+  animPos = (animPos + 1) % frames.length;
+  drawAnimFrame(actx, frames[animPos], $('anim16').checked);
+}
+$('addframe').onclick = () => { frames.push(tile); renderFrames(); };
+$('clearanim').onclick = () => { frames = []; stopAnim(); renderFrames(); };
+$('anim16').onchange = renderFrames;
+function startAnim() {
+  if (!frames.length) { status_('コマがありません。「＋現在のタイル」で追加してください'); return; }
+  playing = true;
+  $('playanim').textContent = '⏸ 停止';
+  animTimer = setInterval(tickAnim, 1000 / +$('fps').value);
+}
+function stopAnim() {
+  playing = false;
+  $('playanim').textContent = '▶ 再生';
+  clearInterval(animTimer);
+}
+$('playanim').onclick = () => playing ? stopAnim() : startAnim();
+$('fps').oninput = () => {
+  $('fpsval').textContent = $('fps').value;
+  if (playing) { clearInterval(animTimer); animTimer = setInterval(tickAnim, 1000 / +$('fps').value); }
+};
+
+// ---- 初期化 ----
+(async () => {
+  renderPages(); renderPals(); redrawAll();
+  try {
+    romBuf = new Uint8Array(await (await fetch('../../editor/base.nes')).arrayBuffer());
+    chrOff = chrOffsetOf(romBuf);
+    chr.set(romBuf.subarray(chrOff, chrOff + 0x4000));
+    status_('base.nes の CHR 16KB を読み込みました');
+  } catch (e) {
+    status_('base.nes を取得できませんでした (ローカルはHTTPサーバ経由で開いてください)');
+  }
+  redrawAll();
+  $('tileinfo').textContent = 'タイルをクリックして選択。4ページ = 16KB (CNROM 2バンク × PT0/PT1)';
+})();
+</script>
+</body>
+</html>

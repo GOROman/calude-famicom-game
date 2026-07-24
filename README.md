@@ -8,6 +8,8 @@
 
 **🎨 [PNG→CGROM 変換ツール](https://goroman.github.io/calude-famicom-game/tools/png2chr/)** — 画像を NES の CHR データ (.byte / .chr) と 4色パレットに変換
 
+**🖌 [CHR-ROM エディタ](https://goroman.github.io/calude-famicom-game/tools/chredit/)** — ROM のタイルグラフィックをブラウザでドット編集。1〜4キー+スペースのキーボード操作、UNDO、アニメーションチェック付き。改造 .nes を書き出してそのまま遊べます
+
 **👁 [目パチエディタ](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — タイトル画面の目パチ (閉じ目/半目/白目) をドット単位で編集、実機同様のプレビュー付き。JSON を `tools/apply_blink.py` でアセットに反映
 
 動作確認には自作 WASM エミュレータ [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu) を使用。
@@ -127,6 +129,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [磨きの日 (スコア・2曲構成・デチューン)](docs/diary/polish.md)
 - [512枚のタイル (イラストのタイトル画面化)](docs/diary/image-title.md)
 - [決意の門 (ボスとエンディング)](docs/diary/boss.md)
+- [番外編: ドットを打つ道具を、ドットのゲームに添える (CHR-ROMエディタ)](docs/diary/chredit.md)
 
 ## License
 
