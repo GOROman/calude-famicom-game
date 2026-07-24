@@ -388,12 +388,21 @@ update_title:
     sta OAM_BUF+6
     lda #44
     sta OAM_BUF+7
-    ; ---- 目パチ: 約2秒ごとに 8F 閉じる (スプライトで閉じ目を上書き) ----
+    ; ---- 目パチ: 約2秒ごとに 8F 閉じる。開いている間は白目を重ねる ----
+    ldx #0              ; まず目スプライト枠 (8枚) を全部隠す
+    lda #$FF
+:   sta OAM_BUF+8,x
+    inx
+    inx
+    inx
+    inx
+    cpx #32
+    bne :-
     lda frame_count
     and #%01111111
     cmp #8
     bcs @eyes_open
-    ldx #0
+    ldx #0              ; 閉じ目 (両目)
 :   lda title_eye_spr,x
     sta OAM_BUF+8,x
     inx
@@ -401,14 +410,11 @@ update_title:
     bne :-
     beq @eyes_done      ; 常に分岐
 @eyes_open:
-    ldx #0
-    lda #$FF
-:   sta OAM_BUF+8,x     ; Y を画面外へ
+    ldx #0              ; 白目 (両目)
+:   lda title_eye_open,x
+    sta OAM_BUF+8,x
     inx
-    inx
-    inx
-    inx
-    cpx #(TITLE_EYE_N*4)
+    cpx #(TITLE_EYE_ON*4)
     bne :-
 @eyes_done:
     ; START / A で決定

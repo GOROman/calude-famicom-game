@@ -166,28 +166,6 @@ render_column:
     sta col_buf,y
     bne @mtn_fill       ; 常に分岐
 @no_mtn:
-    ; ---- 松の木 (山より手前の飾り) ----
-    ldx tmp3
-    lda pine_tbl,x
-    beq @no_pine
-    tay
-    lda #$6F            ; 天辺
-    sta col_buf,y
-    lda #$70            ; 樹冠 x3
-    iny
-    sta col_buf,y
-    iny
-    sta col_buf,y
-    iny
-    sta col_buf,y
-    lda #$71            ; 幹 (地面まで)
-@pine_trunk:
-    iny
-    cpy #25
-    bcs @no_pine
-    sta col_buf,y
-    bne @pine_trunk     ; 常に分岐
-@no_pine:
     ; ---- コイン (右半列の行22。未取得のみ) ----
     lda tmp
     beq @no_coin
@@ -323,9 +301,6 @@ mtn_top_tbl:  .byte 23,22,21,21,20,21,22,23,24,24,0,24,23,22,22,21
 mtn_peak_tbl: .byte $6A,$6A,$6D,$6B,$6D,$6C,$6C,$6C,$6D,$6B,$00,$6A,$6A,$6A,$6B,$6D
               .byte $6A,$6D,$6C,$6C,$6C,$6C,$6D,$00,$00,$6A,$6A,$6B,$6D,$6C,$6C,$6B
 coin_bit_tbl: .byte 1,2,4,8,16,32,64,128
-; 松の木: 32列周期 (0=なし, 他=天辺の行)
-pine_tbl: .byte 0,0,0,16,0,0,0,0,0,0,0,0,18,0,0,0
-          .byte 0,0,0,0,0,0,17,0,0,0,0,0,0,0,18,0
 
 ; ステージ 1-1〜1-4 のマップと敵スポーン (levelgen.py 生成)
 .include "../assets/levels.s"
