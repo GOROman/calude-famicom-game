@@ -676,7 +676,7 @@ draw_enemies:
 @hurt_tiles:
     lda enemy_type,x    ; ダメージ顔は歩行型のみ (他は点滅で表現)
     bne @alive_tiles
-    lda #$6C            ; ダメージ顔 (X目+口開け)
+    lda #$6A            ; ダメージ顔 (X目+口開け)
     bne @set_base       ; 常に分岐
 @alive_tiles:
     lda enemy_type,x
@@ -696,9 +696,9 @@ draw_enemies:
     lda frame_count     ; コウモリ: 8Fごとに羽ばたき
     and #%00001000
     beq :+
-    lda #$7A
+    lda #$6E            ; コウモリ 羽ばたき
     bne @set_base
-:   lda #$76
+:   lda #$6C            ; コウモリ 休み
     bne @set_base
 @ket_base:
     lda #$68
@@ -723,7 +723,7 @@ draw_enemies:
     clc
     adc #1
     sta OAM_BUF+5,y
-    adc #1
+    adc #15            ; 下段 = 上段 +16 (グリッド配置)
     sta OAM_BUF+9,y
     adc #1
     sta OAM_BUF+13,y
@@ -771,10 +771,10 @@ draw_enemies:
     lda fx_timer
     cmp #7
     bcs @fx_small
-    lda #$71            ; 後半: 大バースト
+    lda #$4D            ; 後半: 大バースト
     bne @fx_tile
 @fx_small:
-    lda #$70            ; 前半: 小スパーク
+    lda #$4C            ; 前半: 小スパーク
 @fx_tile:
     sta OAM_BUF+89
     lda #ENEMY_ATTR

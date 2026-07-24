@@ -2,8 +2,8 @@
 ; 方向: 通常=向いている左右 / 上+B=真上 / 下+B=真下 (空中クリア用)
 ; flag: 0=なし 1=右 2=左 3=上 4=下
 
-ARROW_TILE  = $74
-ARROW_VTILE = $7E       ; 縦向きの矢 (下向きは V フリップ)
+ARROW_TILE  = $5C
+ARROW_VTILE = $5D       ; 縦向きの矢 (下向きは V フリップ)
 ARROW_OAM   = 32        ; OAM バッファ内オフセット (スプライト8,9 = プレイヤー8枚の次)
 
 .segment "CODE"

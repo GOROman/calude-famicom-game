@@ -252,7 +252,7 @@ draw_round:
     lda #118
     sta OAM_BUF,y
     iny
-    lda #$03            ; 顔タイル
+    lda #$11            ; 顔タイル (立ち 頭右)
     sta OAM_BUF,y
     iny
     lda #0
@@ -877,14 +877,14 @@ draw_hud:
     sta OAM_BUF+HUD_OAM+8
     sta OAM_BUF+HUD_OAM+12
     sta OAM_BUF+HUD_OAM+16
-    lda #$03            ; 狩人の顔タイル (頭の右下)
+    lda #$11            ; 狩人の顔タイル (頭の右)
     sta OAM_BUF+HUD_OAM+1
     lda lives
     clc
     adc #$90            ; '0' のタイル ($80 + $30-$20)
     sta OAM_BUF+HUD_OAM+5
     ; コイン (右上: アイコン + 2桁。ステージ番号はラウンド画面で表示)
-    lda #$75            ; コインアイコン
+    lda #$5E            ; コインアイコン
     sta OAM_BUF+HUD_OAM+9
     lda coin_tens
     clc

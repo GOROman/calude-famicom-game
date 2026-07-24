@@ -127,12 +127,12 @@ draw_items:
     lda item_flag,x
     cmp #2
     beq @power_tile
-    lda #$72            ; 星 (パレット1 = 黄/白)
+    lda #$4E            ; 星 (パレット1 = 黄/白)
     sta OAM_BUF+1,y
     lda #1
     bne @attr
 @power_tile:
-    lda #$73            ; パワー矢 (パレット0)
+    lda #$4F            ; パワー矢 (パレット0)
     sta OAM_BUF+1,y
     lda #0
 @attr:

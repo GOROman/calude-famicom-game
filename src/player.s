@@ -297,7 +297,8 @@ probe_two:
 
 ; ---- 16x32 メタスプライト (8x8 x8枚) を OAM バッファへ ----
 ; PT1: ポーズ単位 8タイル。tile = base + (part & $FE) | 列
-; $00 立ち / $08-$20 歩き4コマ / $28-$38 ジャンプ上昇・頂点・下降 / $40-$50 弓3段 / $58 X目
+; グリッド配置: tile = base + 行*16 + 列 (2列x4行)
+; $00 立ち / $02-$08 歩き4コマ / $0A-$0E ジャンプ上昇・頂点・下降 / $40-$44 弓3段 / $46 X目
 draw_player:
     lda #0
     sta tmp2            ; 1=死亡ポーズ
@@ -340,9 +341,9 @@ draw_player:
     bne @set_pose
 :   cmp #4
     bcc :+
-    lda #$48
+    lda #$42
     bne @set_pose
-:   lda #$50
+:   lda #$44
     bne @set_pose
 @chk_air:
     lda on_ground
@@ -350,13 +351,13 @@ draw_player:
     lda vel_y_hi        ; ジャンプ: 上昇/頂点/下降で3相
     bmi @rise
     beq @apex
-    lda #$38
+    lda #$0E
     bne @set_pose
 @apex:
-    lda #$30
+    lda #$0C
     bne @set_pose
 @rise:
-    lda #$28
+    lda #$0A
     bne @set_pose
 @grounded:
     lda buttons
@@ -368,10 +369,8 @@ draw_player:
     lsr
     and #3
     asl
-    asl
-    asl
     clc
-    adc #$08
+    adc #$02
     bne @set_pose       ; 常に非0
 @stand:
     lda #$00
@@ -404,9 +403,12 @@ draw_player:
     sta tmp
 :   txa
     and #%11111110
+    asl
+    asl
+    asl                 ; 行*16 ((part&$FE)*8)
     ora tmp
     clc
-    adc spr_tile_buf    ; タイル = ベース + (part&$FE)|列'
+    adc spr_tile_buf    ; タイル = ベース + 行*16 + 列'
     sta OAM_BUF,y
     iny
     lda tmp_attr
@@ -452,11 +454,13 @@ draw_player:
     sec
     sbc tmp
     sta tmp
-:   txa                 ; タイル = $60 + 行*4 + 列'
+:   txa                 ; タイル = $48 + 行*16 + 列'
     and #%00000100
+    asl
+    asl                 ; 行*16 ((p&4)*4)
     ora tmp
     clc
-    adc #$60
+    adc #$48
     sta OAM_BUF,y
     iny
     lda tmp_attr
