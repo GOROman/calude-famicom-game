@@ -51,6 +51,7 @@ sound_init:
     sta sfx1_type
     sta sfx2_type
     sta sfxn_t
+    sta sfxn_type
     sta bass_cur_lo
     sta bass_cur_hi
     lda #15
@@ -70,11 +71,24 @@ sfx_miss:
     lda #0
     sta sfx1_t
     rts
-sfx_shot:
+sfx_shot:               ; 弓の発射 = ノイズの短いヒス
     lda #1
+    sta sfxn_type
+    lda #0
+    sta sfxn_t
+    rts
+sfx_item:               ; アイテム取得 = 上昇アルペジオ (SQ2)
+    lda #4
     sta sfx2_type
     lda #0
     sta sfx2_t
+    rts
+sfx_hit_n:              ; A=0..4 段階ヒット (4=破壊音)
+    clc
+    adc #2
+    sta sfxn_type
+    lda #0
+    sta sfxn_t
     rts
 sfx_defeat:
     lda #2
@@ -82,10 +96,9 @@ sfx_defeat:
     lda #0
     sta sfx2_t
     rts
-sfx_hit:
-    lda #10
-    sta sfxn_t
-    rts
+sfx_hit:                ; 汎用ヒット = 段階1
+    lda #0
+    jmp sfx_hit_n
 sfx_coin:
     lda #3
     sta sfx2_type
@@ -545,50 +558,91 @@ sfx_overlay:
     jmp @sq2
 :   ldx sfx1_t
     cmp #2
-    beq @miss
-    cmp #3
-    beq @startse
-    cpx #14             ; ジャンプ: 14F の上昇スイープ
-    bcs @end1
-    txa
-    asl
-    asl
-    asl
-    sta tmp
-    lda #$C0
-    sec
-    sbc tmp
-    sta $4002
-    cpx #0
     bne :+
-    lda #%11111000
-    sta $4003
-:   lda #%10110111      ; vol 7
+    jmp @miss
+:   cmp #3
+    bne :+
+    jmp @startse
+:
+    cpx #40             ; ジャンプ: スーパーマリオ方式 (HWスイープ3相, $28F)
+    bcc :+
+    lda #$08            ; 終了: スイープ解除
+    sta $4001
+    jmp @end1
+:   cpx #0
+    bne @jp2
+    lda #$82            ; 第1相: duty50 env2 + sweep $A7, 周期 $0FE
     sta SQ1_VOL
+    lda #$A7
+    sta $4001
+    lda #$FE
+    sta $4002
+    lda #%00001000
+    sta $4003
+    bne @jp_done
+@jp2:
+    cpx #3
+    bne @jp3
+    lda #$5F            ; 第2相
+    sta SQ1_VOL
+    lda #$F6
+    sta $4001
+    bne @jp_done
+@jp3:
+    cpx #8
+    bne @jp_done
+    lda #$48            ; 第3相: 上昇スイープの尻上がり
+    sta SQ1_VOL
+    lda #$BC
+    sta $4001
+@jp_done:
     inc sfx1_t
     jmp @sq2
 @startse:
-    cpx #32             ; 開始ジングル: C4 E4 G4 C5 の上昇 (32F)
-    bcs @end1
-    txa
+    cpx #48             ; 開始ファンファーレ: C 和音の高速アルペジオ (SQ1+SQ2) + TRI ルート
+    bcc :+
+    lda #$80
+    sta TRI_LIN
+    jmp @end1
+:   txa                 ; SQ1: 2Fごとに C5→E5→G5→C6
     lsr
-    lsr
-    lsr
+    and #3
     tay
-    lda start_seq,y
-    tay
-    lda pulse_lo_tbl,y
+    ldx start_arp,y
+    lda pulse_lo_tbl,x
     sta $4002
-    txa
-    and #7
-    bne :+
-    lda pulse_hi_tbl,y
+    lda pulse_hi_tbl,x
     ora #%11111000
     sta $4003
-:   lda #%10111000      ; デューティ50% vol 8
+    lda #%10111010      ; duty50 vol10
     sta SQ1_VOL
-    inc sfx1_t
-    jmp @sq2
+    ldx sfx1_t          ; SQ2: 1音ずらしの逆相アルペジオ (薄め)
+    txa
+    lsr
+    clc
+    adc #2
+    and #3
+    tay
+    ldx start_arp,y
+    lda pulse_lo_tbl,x
+    sta $4006
+    lda pulse_hi_tbl,x
+    ora #%11111000
+    sta $4007
+    lda #%10110110      ; vol6
+    sta SQ2_VOL
+    ldx sfx1_t
+    cpx #0
+    bne :+
+    lda bass_lo_tbl+4   ; TRI: C3 ルートを鳴らしっぱなし
+    sta TRI_LO
+    lda bass_hi_tbl+4
+    sta TRI_HI
+    lda #$FF
+    sta TRI_LIN
+:   inc sfx1_t
+    jmp @noi            ; SQ2 も使ったのでノイズへ直行
+@startse_end:
 @miss:
     cpx #40             ; ミス: E4 → D4 → A3 の下降 (40F)
     bcs @end1
@@ -623,20 +677,26 @@ sfx_overlay:
     beq @defeat
     cmp #3
     beq @coin
-    cpx #10             ; ショット: 10F の下降ザップ
+    cmp #4
+    beq @item
+    jmp @end2           ; type1 (旧ショット) は廃止
+@item:
+    cpx #24             ; アイテム取得: C5 E5 G5 C6 を6Fずつ駆け上がる
     bcs @end2
     txa
-    asl
-    asl
-    clc
-    adc #$20
+    lsr
+    lsr
+    and #3
+    tay
+    ldx start_arp,y
+    lda pulse_lo_tbl,x
     sta $4006
-    cpx #0
-    bne :+
-    lda #%11111000
+    lda pulse_hi_tbl,x
+    ora #%11111000
     sta $4007
-:   lda #%01110110      ; デューティ25% vol 6
+    lda #%10111001      ; duty50 vol9
     sta SQ2_VOL
+    ldx sfx2_t
     inc sfx2_t
     jmp @noi
 @coin:
@@ -686,14 +746,34 @@ sfx_overlay:
     lda #0
     sta sfx2_type
 @noi:
-    ; --- ノイズ: 敵ヒット (中域バースト) ---
-    lda sfxn_t
+    ; --- ノイズ: 1=ショット 2-5=ヒット段階 6=破壊クラッシュ ---
+    ldx sfxn_type
     beq @done
-    dec sfxn_t
-    lda #$06
-    sta NOI_FREQ
-    lda sfxn_t
-    ora #$30
+    ldy sfxn_t
+    inc sfxn_t
+    tya
+    cmp noi_len,x
+    bcc :+
+    lda #$30            ; 終了
+    sta NOI_VOL
+    lda #0
+    sta sfxn_type
+    beq @done
+:   lda noi_freq,x      ; 段階ごとに音程が下がり重くなる
+    cpx #6
+    bne :+
+    tya                 ; 破壊: 短周期モードを交互に混ぜて金属的に
+    and #2
+    beq :+
+    lda noi_freq,x
+    ora #$80
+:   sta NOI_FREQ
+    lda noi_vol,x
+    sec
+    sbc sfxn_t          ; 減衰
+    bcs :+
+    lda #0
+:   ora #$30
     sta NOI_VOL
 @done:
     rts
@@ -819,6 +899,9 @@ pulse_hi_tbl: .byte 0,  2,  2,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  1,  0,  
 vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
 vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
 mel_vib:  .byte 0,1,0,$FF           ; リードの遅れビブラート (±1)
-start_seq: .byte 4,6,8,10           ; 開始ジングル C4 E4 G4 C5
+start_arp: .byte 10,11,12,10        ; 高速アルペジオ C5 E5 G5 C5
+noi_freq:  .byte 0,$04,$06,$07,$08,$0A,$0C  ; [type] ノイズ周期
+noi_len:   .byte 0,6,8,9,10,12,26           ; [type] 長さ
+noi_vol:   .byte 0,8,10,11,12,13,14         ; [type] 開始音量
 go_pat:    .byte 9,8,7,6,4,3,3,0    ; ゲームオーバー: A3 G3 F3 E3 C3 A2 A2
 .segment "CODE"

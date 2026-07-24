@@ -333,7 +333,9 @@ update_enemies:
     ldy #0
 @arrow_chk:
     lda arrow_flag,y
-    beq @arrow_next
+    bne :+
+    jmp @arrow_next
+:
     lda arrow_y,y       ; 縦: 矢の中心が敵の高さ帯にあるか (+8 バイアスで上下に寛容)
     clc
     adc #8
@@ -369,7 +371,8 @@ update_enemies:
     sta enemy_dir,x     ; 硬化中の被弾カウンタ (dir を流用)
     lda #2
     sta hitstop
-    jsr sfx_hit
+    lda #0              ; ヒット音 段階1
+    jsr sfx_hit_n
     lda #1              ; 硬化 = 100点
     jsr add_score
     jmp @set_htime
@@ -387,10 +390,13 @@ update_enemies:
     clc
     adc #4
     jsr kill_enemy
+    lda #4              ; 破壊音 (最終段階)
+    jsr sfx_hit_n
     lda #2              ; 破壊 = 200点
     jsr add_score
     jmp @col_next
-:   jsr sfx_hit
+:   lda enemy_dir,x     ; 追い撃ち段階でヒット音が変わる (2..4段階目)
+    jsr sfx_hit_n
 @set_htime:
     ldy enemy_dir,x     ; 硬化時間 = 45/90/135/180 tick (2Fに1減)
     lda harden_time,y

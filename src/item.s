@@ -100,6 +100,7 @@ update_items:
 @took:
     lda #0
     sta item_flag,x
+    jsr sfx_item        ; 取得ファンファーレ
     lda #5              ; アイテム取得 = 500点
     jsr add_score
 @next:
