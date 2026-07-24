@@ -242,7 +242,19 @@ nmi:
     sty PPUADDR
     ldx #0
 @fade_loop:
+    cpx #$09            ; スロット9 = ロゴの金色はサイクルテーブルから
+    bne @fade_static
+    lda frame_count
+    lsr
+    lsr
+    lsr
+    and #7
+    tay
+    lda logo_cycle,y
+    jmp @fade_sub
+@fade_static:
     lda title_img_palette,x
+@fade_sub:
     sec
     sbc fade_amt
     bcs :+
@@ -266,29 +278,6 @@ nmi:
     sta PPUDATA
     sta coin_ppu_hi
 @no_coin_erase:
-    ; ---- タイトル: パレットサイクルでロゴを輝かせる ----
-    lda game_state
-    cmp #4
-    bne @no_palanim
-    lda fade_amt
-    bne @no_palanim     ; フェード中はロゴの明滅も停止
-    lda frame_count     ; (update_title が毎フレーム加算)
-    and #7
-    bne @no_palanim
-    lda frame_count
-    lsr
-    lsr
-    lsr
-    and #7
-    tax
-    bit PPUSTATUS
-    lda #$3F
-    sta PPUADDR
-    lda #$09            ; BG パレット2 スロット1 (ロゴの金色)
-    sta PPUADDR
-    lda logo_cycle,x
-    sta PPUDATA
-@no_palanim:
     ; スクロールとネームテーブル選択 (PPUADDR を触った後に必ず再設定)
     lda scroll_hi
     and #1
