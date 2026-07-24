@@ -410,7 +410,10 @@ update_title:
     sbc #$10
     sta fade_amt
 @fadein_done:
-    ; ↓ でカーソル移動
+    lda fade_amt        ; フェードイン完了までは入力を受け付けない
+    beq :+
+    jmp @draw_eyes
+:   ; ↓ でカーソル移動
     lda buttons
     and #BTN_DOWN
     beq :+
@@ -501,16 +504,26 @@ update_title:
     lda #$FF
     sta OAM_BUF+4
     bne @eyes_done      ; 常に分岐
-:   lda title_exit      ; 退場演出: ウィンク (手前の目だけ閉じ)
+:   lda title_exit      ; 退場演出: 目パチアニメで目を閉じる (半目→閉じ)
     beq @by_phase
-    ldx #0
+    cmp #6
+    bcs @exit_closed
+    ldx #0              ; 前半6Fは半目
+:   lda title_eye_half,x
+    sta OAM_BUF+8,x
+    inx
+    cpx #(TITLE_EYE_HN*4)
+    bne :-
+    beq @exit_cursor    ; 常に分岐
+@exit_closed:
+    ldx #0              ; 以降は閉じ目 (ユーザー定義)
 :   lda title_eye_spr,x
     sta OAM_BUF+8,x
     inx
-    cpx #(TITLE_EYE_NEAR*4)
+    cpx #(TITLE_EYE_N*4)
     bne :-
-    ; カーソルも消す (ウィンクの主役を立てる)
-    lda #$FF
+@exit_cursor:
+    lda #$FF            ; カーソルは消す
     sta OAM_BUF+4
     bne @eyes_done
 @by_phase:
@@ -574,6 +587,7 @@ update_title:
     sta star_timer
     sta coin_ones
     sta coin_tens
+    sta score_tens
     jmp start_stage
 @done:
     rts
@@ -603,7 +617,11 @@ check_clear:
     rts
 
 ; ---- スコア加算: A = 100点単位の加算量 (0-99) ----
-add_score:
+add_score:              ; A = 加算する百点数 (X は保存する)
+    sta tmp
+    txa
+    pha
+    lda tmp
     clc
     adc score+3
     sta score+3
@@ -622,6 +640,8 @@ add_score:
 @next:
     dex
     bpl @norm
+    pla
+    tax
     rts
 @cap:
     lda #9              ; 999900 でカンスト
@@ -629,6 +649,8 @@ add_score:
     sta score+1
     sta score+2
     sta score+3
+    pla
+    tax
     rts
 
 ; ---- 死亡演出の開始 (敵接触・穴落下から呼ばれる) ----
@@ -646,7 +668,23 @@ player_die_start:
 ; ---- 演出の進行 ----
 update_state:
     inc frame_count     ; 点滅用 (プレイ中は update_enemies が回している)
-    dec state_timer
+    lda game_state      ; クリア演出: 旗ポールをスルーッと滑り降りる
+    cmp #1
+    bne :+
+    lda player_y
+    cmp #168
+    bcs :+
+    inc player_y
+    inc player_y
+    inc score_tens      ; 旗の高さボーナス: 降りるたび +10点
+    lda score_tens
+    cmp #10
+    bcc :+
+    lda #0
+    sta score_tens
+    lda #1
+    jsr add_score
+:   dec state_timer
     beq @expired
     rts
 @expired:
@@ -759,11 +797,14 @@ draw_hud:
     inx
     cpx #4
     bne @score_loop
-    lda #24             ; 固定の下2桁 "00"
+    lda #24             ; 下2桁: 十の位 (旗ボーナス) + "0"
     sta OAM_BUF+SCORE_OAM+16
     sta OAM_BUF+SCORE_OAM+20
-    lda #$90
+    lda score_tens
+    clc
+    adc #$90
     sta OAM_BUF+SCORE_OAM+17
+    lda #$90
     sta OAM_BUF+SCORE_OAM+21
     lda #0
     sta OAM_BUF+SCORE_OAM+18

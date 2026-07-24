@@ -120,6 +120,8 @@ enemy_ypos:   .res 3    ; 敵の現在 Y (種類ごとに変動)
 hitstop:      .res 1    ; 撃破ヒットストップの残りフレーム
 kill_flash:   .res 1    ; 撃破フラッシュの残りフレーム (NMI が BG 色を明滅)
 stomp_chain:  .res 1    ; 空中連続踏みコンボ数
+drop_override:.res 1    ; 次のドロップを強制指定 (0=スロット既定, 1=星 2=パワー矢)
+score_tens:   .res 1    ; スコアの十の位 (旗降りボーナス用)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)

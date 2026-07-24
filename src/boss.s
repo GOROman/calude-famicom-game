@@ -209,9 +209,9 @@ update_boss:
     cmp boss_y
     bcc @done
     beq @done
-    lda boss_y
+    lda boss_y          ; 頭の実体 (y+8) と比較
     clc
-    adc #32
+    adc #24
     cmp player_y
     bcc @done
     beq @done

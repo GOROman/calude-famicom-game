@@ -5,7 +5,8 @@
 ;   接地中に足元が空になったら落下開始 (足場から歩いて落ちる)
 
 PLAYER_SPEED    = 2         ; 横移動 px/フレーム
-PLAYER_GROUND_Y = 168       ; 平地での接地 Y (16x32 なので 168+32=200)
+PLAYER_GROUND_Y = 168       ; 平地での接地 Y (168+32=200)
+; 実体は 16x24 (スプライト枠 32 の下寄せ) — 頭の実体は y+8 から
 
 ; スーパーマリオ風可変ジャンプ (SMB の JumpMForceData/FallMForceData 相当)
 JUMP_VEL_HI     = $FC       ; ジャンプ初速 -4.0 px/フレーム (SMB PlayerYSpdData)
@@ -52,7 +53,10 @@ update_player:
     lda world_x_hi
     sta tmp2
     jsr probe_side
+    bcs @left_cancel
+    jsr probe_enemy_solid
     bcc @left_ok
+@left_cancel:
     pla                 ; 衝突 → 移動取消
     sta world_x_hi
     pla
@@ -96,7 +100,10 @@ update_player:
     adc #0
     sta tmp2
     jsr probe_side
+    bcs @right_cancel
+    jsr probe_enemy_solid
     bcc @right_ok
+@right_cancel:
     pla                 ; 衝突 → 移動取消
     sta world_x_hi
     pla
@@ -202,8 +209,8 @@ update_player:
     jsr probe_head      ; 上昇中: 頭上
     cmp #$FF
     beq @done
-    clc                 ; 天井: y = ブロック下端
-    adc #16
+    clc                 ; 天井: 頭 (y+8) がブロック下端に付く
+    adc #8
     sta player_y
     lda #0
     sta player_y_sub
@@ -221,19 +228,19 @@ update_player:
 probe_side:
     lda player_y
     clc
-    adc #1
+    adc #9              ; 頭の実体上端
     jsr probe_top
     cmp #$FF
     bne @hit
     lda player_y
     clc
-    adc #11
+    adc #17
     jsr probe_top
     cmp #$FF
     bne @hit
     lda player_y
     clc
-    adc #21
+    adc #25
     jsr probe_top
     cmp #$FF
     bne @hit
@@ -253,9 +260,9 @@ probe_side:
 probe_feet:
     lda #32
     bne probe_two       ; 常に分岐
-; ---- 頭上 (y+0) の面 ----
+; ---- 頭上 (y+8 = 実体の上端) の面 ----
 probe_head:
-    lda #0
+    lda #8
 ; ---- 共通: A = Y オフセット。x+2 / x+13 の2点を判定し高い方 (小さい Y) を返す ----
 probe_two:
     pha                 ; Y オフセットを保存
@@ -321,8 +328,7 @@ draw_player:
     ; ---- ポーズ選択 ----
     lda tmp2
     beq @chk_attack
-    lda #$58            ; X目
-    bne @set_pose
+    jmp @draw_lying     ; やられ: 横に倒れる
 @chk_attack:
     lda attack_timer
     beq @chk_air
@@ -418,4 +424,56 @@ draw_player:
     inx
     cpx #8
     bne @loop
+    rts
+
+; ---- やられ: 32x16 の横倒れポーズ (頭は向いていた方向へ) ----
+@draw_lying:
+    lda facing
+    beq :+
+    lda #$40
+:   sta tmp_attr
+    ldx #0              ; パーツ 0-7 (列=p&3, 行=p>>2)
+    ldy #0
+@ly_loop:
+    txa                 ; Y = player_y + 16 + 行*8
+    and #%00000100
+    asl
+    clc
+    adc #16
+    adc player_y
+    sta OAM_BUF,y
+    iny
+    txa                 ; 列' (左向きは反転)
+    and #3
+    sta tmp
+    lda facing
+    beq :+
+    lda #3
+    sec
+    sbc tmp
+    sta tmp
+:   txa                 ; タイル = $60 + 行*4 + 列'
+    and #%00000100
+    ora tmp
+    clc
+    adc #$60
+    sta OAM_BUF,y
+    iny
+    lda tmp_attr
+    sta OAM_BUF,y
+    iny
+    txa                 ; X = player_x - 8 + (p&3)*8
+    and #3
+    asl
+    asl
+    asl
+    clc
+    adc player_x
+    sec
+    sbc #8
+    sta OAM_BUF,y
+    iny
+    inx
+    cpx #8
+    bne @ly_loop
     rts

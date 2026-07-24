@@ -15,8 +15,15 @@ spawn_item:
     lda item_flag+1
     bne @no_slot
 @slot_ok:
-    lda drop_table,x
+    lda drop_override   ; 石化破壊のランダムドロップが予約されていれば優先
+    beq :+
     sta item_flag,y
+    lda #0
+    sta drop_override
+    beq :++             ; 常に分岐
+:   lda drop_table,x
+    sta item_flag,y
+:
     lda enemy_xlo,x     ; 敵の中央にドロップ
     clc
     adc #4

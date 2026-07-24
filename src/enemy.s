@@ -365,19 +365,43 @@ update_enemies:
     beq @refreeze
     lda #4              ; 硬化! 足場になる
     sta enemy_flag,x
+    lda #0
+    sta enemy_dir,x     ; 硬化中の被弾カウンタ (dir を流用)
     lda #2
     sta hitstop
     jsr sfx_hit
     lda #1              ; 硬化 = 100点
     jsr add_score
+    jmp @set_htime
 @refreeze:
-    lda #255
+    inc enemy_dir,x     ; 追い撃ちで硬化延長 1.5→3→4.5→6秒、5発目で破壊
+    lda enemy_dir,x
+    cmp #4
+    bcc :+
+    lda frame_count     ; 破壊! ランダムドロップ (星 or パワー矢)
+    and #1
+    clc
+    adc #1
+    sta drop_override
+    lda enemy_ypos,x    ; (kill_enemy は X=スロット必須なので add_score より先)
+    clc
+    adc #4
+    jsr kill_enemy
+    lda #2              ; 破壊 = 200点
+    jsr add_score
+    jmp @col_next
+:   jsr sfx_hit
+@set_htime:
+    ldy enemy_dir,x     ; 硬化時間 = 45/90/135/180 tick (2Fに1減)
+    lda harden_time,y
     sta enemy_timer,x
     jmp @col_next
 @arrow_next:
     iny
     cpy #2
-    bne @arrow_chk
+    beq :+
+    jmp @arrow_chk
+:
     ; --- プレイヤー接触 (生存中のみ。硬化中は足場なので無害) ---
     lda enemy_flag,x
     cmp #1
@@ -390,7 +414,7 @@ update_enemies:
     sbc enemy_ypos,x
     beq @col_skip
     bcc @col_skip
-    cmp #48
+    cmp #40             ; 実体 16x24 (頭は y+8) に合わせる
     bcc :+
 @col_skip:
     jmp @col_next
@@ -465,6 +489,48 @@ update_enemies:
     bmi @done
     jmp @col_loop
 @done:
+    rts
+
+; ---- 硬化した敵の横当たり: C=1 → 体が重なっている (横移動ブロック用) ----
+; 上に乗る/下をくぐるのは許す一方通行 (d = 足元 - 敵上端 が 6..39 のときだけ壁)
+probe_enemy_solid:
+    ldx #2
+@s:
+    lda enemy_flag,x
+    cmp #4
+    bne @sn
+    lda player_y
+    clc
+    adc #32
+    sec
+    sbc enemy_ypos,x
+    cmp #6
+    bcc @sn             ; 上に乗っている
+    cmp #40
+    bcs @sn             ; 下をくぐっている
+    lda world_x_lo
+    clc
+    adc #13
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    lda tmp
+    sec
+    sbc enemy_xlo,x
+    sta tmp
+    lda tmp2
+    sbc enemy_xhi,x
+    bne @sn
+    lda tmp
+    cmp #27
+    bcs @sn
+    sec
+    rts
+@sn:
+    dex
+    bpl @s
+    clc
     rts
 
 ; ---- 硬化した敵の足場判定: C=1 → A = 敵の上端 Y ----
@@ -598,8 +664,8 @@ draw_enemies:
     bne :+
     lda #3              ; 石化 = パレット3 (灰色)
     sta tmp2
-    lda enemy_timer,x   ; 復活間際 (残り50) はパレット点滅で警告
-    cmp #50
+    lda enemy_timer,x   ; 復活間際 (残り40 ≈ 0.7秒) はパレット点滅で警告
+    cmp #40
     bcs @alive_tiles
     lda frame_count
     and #4
@@ -632,6 +698,9 @@ draw_enemies:
     lda #2
     sta tmp2
 @bat_tiles:
+    lda enemy_flag,x    ; 石化中はアニメ停止 (羽を上げた形で固まる)
+    cmp #4
+    beq :+
     lda frame_count     ; コウモリ: 8Fごとに羽ばたき
     and #%00001000
     beq :+
@@ -727,6 +796,7 @@ draw_enemies:
     rts
 
 .segment "RODATA"
+harden_time: .byte 45,90,135,180        ; 石化時間 1.5/3/4.5/6 秒 (tick=2F)
 bob_wave: .byte 0,2,5,7,10,12,15,17,20,22,25,27,30,32,35,37,40,42,45,47,50,52,55,57,60,62,65,67,70,72,75,77,80,77,75,72,70,67,65,62,60,57,55,52,50,47,45,42,40,37,35,32,30,27,25,22,20,17,15,12,10,7,5,2
 bat_wave: .byte 20,23,27,31,34,36,38,39,40,39,38,36,34,31,27,23,20,16,12,8,5,3,1,0,0,0,1,3,5,8,12,16
 hop_arc:  .byte 0,2,4,6,8,10,12,13,15,17,18,19,20,22,23,24,24,25,26,26,27,27,27,27,27,27,27,27,27,26,26,25,24,24,23,22,20,19,18,17,15,13,12,10,8,6,4,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
