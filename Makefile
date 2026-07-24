@@ -13,13 +13,8 @@ $(ROM): $(BUILD)/main.o nes.cfg
 	ld65 -C nes.cfg -o $@ $(BUILD)/main.o
 	@ls -l $@
 
-$(BUILD)/main.o: $(SRC) buildinfo | $(BUILD)
+$(BUILD)/main.o: $(SRC) | $(BUILD)
 	ca65 -g src/main.s -o $@
-
-# タイトル画面用のビルド情報 (Git リビジョン + 日付) を毎回再生成
-.PHONY: buildinfo
-buildinfo:
-	python3 tools/gen_buildinfo.py
 
 $(BUILD):
 	mkdir -p $(BUILD)

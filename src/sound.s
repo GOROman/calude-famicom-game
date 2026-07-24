@@ -90,12 +90,6 @@ sfx_coin:
     lda #0
     sta sfx2_t
     rts
-sfx_start:
-    lda #3
-    sta sfx1_type
-    lda #0
-    sta sfx1_t
-    rts
 
 ; ================= メイン更新 (毎フレーム) =================
 update_sound:
@@ -104,10 +98,6 @@ update_sound:
     bne @not_fanfare
     jmp fanfare_update  ; クリア中はファンファーレ専用
 @not_fanfare:
-    cmp #3
-    bne @not_gameover
-    jmp gameover_update ; ゲームオーバー: BGM停止 + 三角波ジングル
-@not_gameover:
     cmp #2
     bne @not_dead
     lda #$80            ; ミス中は BGM を止める (SFX のみ鳴る)
@@ -316,40 +306,6 @@ update_sound:
     ; ---- SFX オーバーレイ (BGM の上から上書き) ----
     jmp sfx_overlay
 
-; ---- ゲームオーバー: BGM を止めて三角波メインの下降ジングル ----
-gameover_update:
-    lda #$30            ; SQ/NOI ミュート
-    sta NOI_VOL
-    lda #%10110000
-    sta SQ1_VOL
-    sta SQ2_VOL
-    ldx snd_tick
-    inx
-    beq :+              ; 255 で張り付き (鳴り終わり)
-    stx snd_tick
-:   txa
-    lsr
-    lsr
-    lsr
-    lsr                 ; 16F = 1ステップ
-    cmp #8
-    bcs @go_end
-    tay
-    lda go_pat,y
-    beq @go_end
-    tax
-    lda bass_lo_tbl,x
-    sta TRI_LO
-    lda bass_hi_tbl,x
-    sta TRI_HI
-    lda #$FF
-    sta TRI_LIN
-    rts
-@go_end:
-    lda #$80
-    sta TRI_LIN
-    rts
-
 ; ---- 音量キャップ (フェードイン): A = min(A, snd_fade) ----
 cap_vol:
     cmp snd_fade
@@ -491,13 +447,10 @@ bass_update:
 sfx_overlay:
     ; --- SQ1: ジャンプ (上昇スイープ) / ミス (下降3音) ---
     lda sfx1_type
-    bne :+
-    jmp @sq2
-:   ldx sfx1_t
+    beq @sq2
+    ldx sfx1_t
     cmp #2
     beq @miss
-    cmp #3
-    beq @startse
     cpx #14             ; ジャンプ: 14F の上昇スイープ
     bcs @end1
     txa
@@ -514,28 +467,6 @@ sfx_overlay:
     lda #%11111000
     sta $4003
 :   lda #%10110111      ; vol 7
-    sta SQ1_VOL
-    inc sfx1_t
-    jmp @sq2
-@startse:
-    cpx #32             ; 開始ジングル: C4 E4 G4 C5 の上昇 (32F)
-    bcs @end1
-    txa
-    lsr
-    lsr
-    lsr
-    tay
-    lda start_seq,y
-    tay
-    lda pulse_lo_tbl,y
-    sta $4002
-    txa
-    and #7
-    bne :+
-    lda pulse_hi_tbl,y
-    ora #%11111000
-    sta $4003
-:   lda #%10111000      ; デューティ50% vol 8
     sta SQ1_VOL
     inc sfx1_t
     jmp @sq2
@@ -768,6 +699,4 @@ pulse_hi_tbl: .byte 0,  2,  2,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  1,  0,  
 ; ビブラート: 浅 (±2) と 深 (±6, ノート直後のレゾナンス風)
 vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
 vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
-start_seq: .byte 4,6,8,10           ; 開始ジングル C4 E4 G4 C5
-go_pat:    .byte 9,8,7,6,4,3,3,0    ; ゲームオーバー: A3 G3 F3 E3 C3 A2 A2
 .segment "CODE"
