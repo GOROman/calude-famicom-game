@@ -180,7 +180,9 @@ assert len(tiles)<=len(FREED), f'タイル {len(tiles)} 枚 (16まで)'
 # ウィンク用: 閉じ目は手前の目 (x>=193) を先頭に並べる
 tables['closed'].sort(key=lambda s: 0 if s[2]>=193 else 1)
 near_n = sum(1 for s in tables['closed'] if s[2]>=193)
-print('tiles:',len(tiles),'sprs:',{k:len(v) for k,v in tables.items()},'near:',near_n)
+tables['white'].sort(key=lambda s: 0 if s[2]<193 else 1)     # 白目は奥の目が先頭
+ofar_n = sum(1 for s in tables['white'] if s[2]<193)
+print('tiles:',len(tiles),'sprs:',{k:len(v) for k,v in tables.items()},'near:',near_n,'ofar:',ofar_n)
 
 # ---- title_chr.s: PT0 スロット書き換え ----
 assert len(chrb)==8192   # (前処理で pristine から読み込み+焼き込み済み)
@@ -209,6 +211,7 @@ block=(f'TITLE_EYE_N   = {len(tables["closed"])}\n'
        f'TITLE_EYE_HN  = {len(tables["half"])}\n'
        f'TITLE_EYE_ON  = {len(tables["white"])}\n'
        f'TITLE_EYE_NEAR = {near_n}\n'
+       f'TITLE_EYE_OFAR = {ofar_n}\n'
        '.segment "RODATA"\n'
        'title_eye_spr:       ; 閉じ目 (blink エディタ)\n'
        '    .byte '+tbl(tables['closed'])+'\n'

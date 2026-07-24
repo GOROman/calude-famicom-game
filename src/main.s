@@ -122,6 +122,9 @@ kill_flash:   .res 1    ; 撃破フラッシュの残りフレーム (NMI が BG
 stomp_chain:  .res 1    ; 空中連続踏みコンボ数
 drop_override:.res 1    ; 次のドロップを強制指定 (0=スロット既定, 1=星 2=パワー矢)
 score_tens:   .res 1    ; スコアの十の位 (旗降りボーナス用)
+iblink_t:     .res 1    ; ラウンド画面の目パチタイマー
+iblink_go:    .res 1    ; 1=開き目を書く 2=閉じ目を書く (NMI が処理)
+cont_magic:   .res 1    ; $C5 なら current_stage が有効 (CONTINUE 用, リセットを跨ぐ)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -131,6 +134,15 @@ coin_taken:   .res 8    ; 取得済みコインのビットマップ (メタ列 
 reset:
     sei
     cld
+    ldy #0              ; CONTINUE 用: 最後に到達したステージを退避
+    lda cont_magic      ; (電源投入直後はゴミなのでマジックで検証)
+    cmp #$C5
+    bne :+
+    ldy current_stage
+    cpy #4
+    bcc :+
+    ldy #0
+:
     ldx #$40
     stx FRAMECNT        ; APU フレーム IRQ 無効化
     ldx #$FF
@@ -169,8 +181,9 @@ reset:
     jsr sound_init
     lda #3              ; 残機3でスタート
     sta lives
-    lda #0
-    sta current_stage
+    sty current_stage   ; CONTINUE 用に退避したステージを復元
+    lda #$C5
+    sta cont_magic
     jsr show_title      ; まずはタイトル画面 (START でゲーム開始)
 
 main_loop:
@@ -289,6 +302,32 @@ nmi:
     sta PPUDATA
     sta coin_ppu_hi
 @no_coin_erase:
+    ; ---- ラウンド画面: 顔の目パチ (NT のセルを開き目/閉じ目に書き換え) ----
+    lda game_state
+    cmp #6
+    bne @no_iblink
+    lda iblink_go
+    beq @no_iblink
+    ldx #0
+@ib_loop:
+    bit PPUSTATUS
+    lda round_eye_ahi,x
+    sta PPUADDR
+    lda round_eye_alo,x
+    sta PPUADDR
+    lda iblink_go
+    cmp #2
+    beq :+
+    lda round_eye_open,x
+    jmp :++
+:   lda round_eye_closed,x
+:   sta PPUDATA
+    inx
+    cpx #ROUND_EYE_N
+    bne @ib_loop
+    lda #0
+    sta iblink_go
+@no_iblink:
     ; ---- 撃破フラッシュ: BG 色を1-2フレーム白く ----
     lda game_state
     cmp #4
@@ -313,8 +352,12 @@ nmi:
     ora #%10000000
     ldx game_state      ; ゲーム中のスプライトは PT1 (タイトルは PT0)
     cpx #4
-    beq :+
+    beq :++
     ora #%00001000
+    cpx #6              ; ラウンド画面は BG も PT1 (顔+かな)
+    bne :+
+    ora #%00010000
+:
 :   sta PPUCTRL
     lda scroll_lo
     sta PPUSCROLL
@@ -380,6 +423,7 @@ logo_cycle: .byte $27,$37,$28,$38,$27,$17,$07,$17  ; 金色の明滅 (炎のゆ�
 
 .include "../assets/drums.s"
 .include "../assets/title_screen.s"
+.include "../assets/roundtext.s"
 
 .segment "CHR"
 .include "../assets/chr.s"

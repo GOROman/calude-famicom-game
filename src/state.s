@@ -56,7 +56,6 @@ start_stage:
     lda #15             ; ゲーム中はフェードなし (全音量)
     sta snd_fade
     jsr ppu_init        ; パレット + ネームテーブルクリア
-    jsr level_init      ; 最初の2画面分を描画
     jsr player_init
     jsr enemy_init
     jsr boss_init       ; 1-4 ならボス出現
@@ -71,13 +70,123 @@ start_stage:
     ; ---- スーパーマリオ風ラウンド表示 (黒画面 + STAGE 1-N + 残機) ----
     lda #6
     sta game_state
-    lda #120            ; 2秒
+    lda #150            ; 2.5秒 (セリフを読む時間)
     sta state_timer
+    lda #90
+    sta iblink_t
+    lda #0
+    sta iblink_go
     jsr draw_round
+    jsr draw_round_bg   ; 顔 + セリフ (BG, レンダリング停止中に書く)
     lda #%10000000      ; NMI 再開
     sta PPUCTRL
-    lda #%00010110      ; スプライトのみ (BG 非表示 = 黒)
+    lda #%00011110      ; BG (顔+セリフ) + スプライト
     sta PPUMASK
+    rts
+
+; ---- ラウンド画面の BG: 全面ブランク + 顔 (4x3) + セリフ ----
+draw_round_bg:
+    bit PPUSTATUS
+    lda #$20            ; NT を空白タイル ($80 = フォントの空白) で埋める
+    sta PPUADDR
+    lda #$00
+    sta PPUADDR
+    ldx #4
+    ldy #0
+    lda #$80
+@fill:
+    sta PPUDATA
+    iny
+    bne @fill
+    dex
+    bne @fill
+    ; 属性: 全体 0 → 顔とセリフ帯をパレット1 (肌/茶) に
+    bit PPUSTATUS
+    lda #$23
+    sta PPUADDR
+    lda #$C0
+    sta PPUADDR
+    ldx #0
+    lda #0
+@attr0:
+    sta PPUDATA
+    inx
+    cpx #64
+    bne @attr0
+    bit PPUSTATUS
+    lda #$23
+    sta PPUADDR
+    lda #$CB            ; 顔 (attr 行1, 列3-4)
+    sta PPUADDR
+    lda #$55
+    sta PPUDATA
+    sta PPUDATA
+    bit PPUSTATUS
+    lda #$23
+    sta PPUADDR
+    lda #$E0            ; セリフ行 (attr 行4 全体)
+    sta PPUADDR
+    ldx #0
+    lda #$55
+@attr1:
+    sta PPUDATA
+    inx
+    cpx #8
+    bne @attr1
+    ; 顔 4x3 (rows 4-6, cols 14-17)
+    ldx #0
+@face_rows:
+    bit PPUSTATUS
+    lda #$20
+    sta PPUADDR
+    txa
+    clc
+    adc #4              ; 行 4+r
+    asl
+    asl
+    asl
+    asl
+    asl                 ; *32
+    clc
+    adc #14
+    sta PPUADDR
+    txa
+    asl
+    asl
+    tay                 ; r*4
+    lda round_face_ids,y
+    sta PPUDATA
+    lda round_face_ids+1,y
+    sta PPUDATA
+    lda round_face_ids+2,y
+    sta PPUDATA
+    lda round_face_ids+3,y
+    sta PPUDATA
+    inx
+    cpx #3
+    bne @face_rows
+    ; セリフ (行17, 中央寄せは左7列固定)
+    ldx current_stage
+    lda round_dlg_lo,x
+    sta text_ptr
+    lda round_dlg_hi,x
+    sta text_ptr+1
+    bit PPUSTATUS
+    lda #$22
+    sta PPUADDR
+    lda #$27            ; $2000 + 17*32 + 7
+    sta PPUADDR
+    ldy #0
+@dlg:
+    lda (text_ptr),y
+    beq @dlg_done
+    cmp #$FF
+    bne :+
+    lda #$80            ; 空白
+:   sta PPUDATA
+    iny
+    bne @dlg
+@dlg_done:
     rts
 
 ; ---- ラウンド表示のスプライトを OAM へ (state 6 の間は他に描画なし) ----
@@ -504,23 +613,20 @@ update_title:
     lda #$FF
     sta OAM_BUF+4
     bne @eyes_done      ; 常に分岐
-:   lda title_exit      ; 退場演出: 目パチアニメで目を閉じる (半目→閉じ)
+:   lda title_exit      ; 退場演出: ウィンク (手前だけ閉じ、奥は白目のまま)
     beq @by_phase
-    cmp #6
-    bcs @exit_closed
-    ldx #0              ; 前半6Fは半目
-:   lda title_eye_half,x
-    sta OAM_BUF+8,x
-    inx
-    cpx #(TITLE_EYE_HN*4)
-    bne :-
-    beq @exit_cursor    ; 常に分岐
-@exit_closed:
-    ldx #0              ; 以降は閉じ目 (ユーザー定義)
+    ldx #0              ; 手前の閉じ目 (ユーザー定義)
 :   lda title_eye_spr,x
     sta OAM_BUF+8,x
     inx
-    cpx #(TITLE_EYE_N*4)
+    cpx #(TITLE_EYE_NEAR*4)
+    bne :-
+    ldy #0              ; 奥の白目
+:   lda title_eye_open,y
+    sta OAM_BUF+8,x
+    inx
+    iny
+    cpy #(TITLE_EYE_OFAR*4)
     bne :-
 @exit_cursor:
     lda #$FF            ; カーソルは消す
@@ -668,6 +774,30 @@ player_die_start:
 ; ---- 演出の進行 ----
 update_state:
     inc frame_count     ; 点滅用 (プレイ中は update_enemies が回している)
+    lda game_state      ; ラウンド画面: 顔の目パチ
+    cmp #6
+    bne @no_iblink
+    dec iblink_t
+    bne @no_iblink
+    lda iblink_go       ; 直前の書き込みが開き目なら次は閉じ目
+    bne @no_iblink
+    lda frame_count
+    and #1
+    bne @ib_close
+    lda #1              ; 開く (次の目パチまで長め)
+    sta iblink_go
+    lda frame_count
+    and #63
+    clc
+    adc #60
+    sta iblink_t
+    bne @no_iblink
+@ib_close:
+    lda #2              ; 閉じる (12F)
+    sta iblink_go
+    lda #12
+    sta iblink_t
+@no_iblink:
     lda game_state      ; クリア演出: 旗ポールをスルーッと滑り降りる
     cmp #1
     bne :+
@@ -687,6 +817,7 @@ update_state:
 :   dec state_timer
     beq @expired
     rts
+@not_expired_hook:
 @expired:
     lda game_state
     cmp #6
@@ -722,8 +853,16 @@ update_state:
 @to_reset:
     jmp reset
 @round_go:
-    lda #0              ; ラウンド表示終了 → プレイ開始
+    lda #0              ; ラウンド表示終了 → レベルを構築してプレイ開始
+    sta PPUCTRL
+    sta PPUMASK
+    sta nmi_ready
+    jsr ppu_init
+    jsr level_init
+    lda #0
     sta game_state
+    lda #%10000000
+    sta PPUCTRL
     lda #%00011110      ; BG + スプライト表示
     sta PPUMASK
     rts

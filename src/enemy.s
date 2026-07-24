@@ -444,22 +444,8 @@ update_enemies:
     lda tmp3
     cmp #14
     bcs @player_die     ; 深くめり込んでいる → やられ
-    inc stomp_chain     ; 踏みつけ! 空中コンボで倍々
-    lda enemy_ypos,x
-    sec
-    sbc #4
-    jsr kill_enemy
-    lda stomp_chain     ; 200,400,800,1600,3200点...
-    cmp #5
-    bcc :+
-    lda #5
-:   tay
-    lda #1
-@chain_shift:
-    asl
-    dey
-    bne @chain_shift
-    jsr add_score
+    ; 踏み! 敵は倒せないがバウンドで跳び継げる
+    jsr sfx_jump
     lda #0
     sta vel_y_lo
     lda #$FD            ; バウンド -3.0 (A 押しなら -4.25 の大ジャンプ)
