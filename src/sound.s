@@ -46,6 +46,8 @@ sound_init:
     sta vib_phase
     sta mel_vol
     sta mel_note
+    sta mel_age
+    sta mel_per_lo
     sta sfx1_type
     sta sfx2_type
     sta sfxn_t
@@ -90,6 +92,12 @@ sfx_coin:
     lda #0
     sta sfx2_t
     rts
+sfx_start:
+    lda #3
+    sta sfx1_type
+    lda #0
+    sta sfx1_t
+    rts
 
 ; ================= メイン更新 (毎フレーム) =================
 update_sound:
@@ -98,6 +106,10 @@ update_sound:
     bne @not_fanfare
     jmp fanfare_update  ; クリア中はファンファーレ専用
 @not_fanfare:
+    cmp #3
+    bne @not_gameover
+    jmp gameover_update ; ゲームオーバー: BGM停止 + 三角波ジングル
+@not_gameover:
     cmp #2
     bne @not_dead
     lda #$80            ; ミス中は BGM を止める (SFX のみ鳴る)
@@ -109,6 +121,20 @@ update_sound:
     sta SQ2_VOL
     jmp sfx_overlay
 @not_dead:
+    ldx game_state      ; START 押下 (タイトル退場演出) 中は BGM 停止
+    cpx #4
+    bne @not_texit
+    ldx title_exit
+    beq @not_texit
+    lda #$80
+    sta TRI_LIN
+    lda #$30
+    sta NOI_VOL
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+    jmp sfx_overlay     ; 開始ジングルだけ鳴る
+@not_texit:
     ; ---- フェードイン (タイトル画面で 0→15) ----
     lda game_state
     cmp #4
@@ -199,10 +225,13 @@ update_sound:
     beq @echo
     sta mel_note
     tax
-    lda #9              ; アタック音量 (9→6 へソフトエンベロープ)
+    lda #10             ; アタック音量 (10 → 2 へゆっくり減衰 = 透明感)
     sta mel_vol
+    lda #0
+    sta mel_age
     lda pulse_lo_tbl,x
     sta $4002
+    sta mel_per_lo
     lda pulse_hi_tbl,x
     ora #%11111000
     sta $4003
@@ -233,11 +262,7 @@ update_sound:
     adc #0
     ora #%11111000
     sta $4007
-    lda #6
-    jsr cap_vol
-    ora #%10110000      ; デューティ50% (厚いユニゾン)
-    sta SQ2_VOL
-    jmp @no_step
+    jmp @no_step        ; 音量はエンベロープ部で管理 (リードより薄く)
 @echo_mode:
     lda tmp
     sec
@@ -288,23 +313,92 @@ update_sound:
     ora #$30
     sta NOI_VOL
 @hat_done:
-    ; ---- リードのソフトエンベロープ (9 → 6) ----
+    ; ---- リードの透明感エンベロープ: 10 → 2 へゆっくり減衰 + 遅れビブラート ----
     lda mel_vol
-    beq :+
-    cmp #7
-    bcc :+
-    lda snd_tick
-    and #1
+    beq @mel_flat
+    inc mel_age
     bne :+
+    dec mel_age         ; 255 で張り付き
+:   lda snd_tick
+    and #3
+    bne :+
+    lda mel_vol
+    cmp #3              ; floor 2 (消え際まで長く尾を引く)
+    bcc :+
     dec mel_vol
-:   lda mel_vol
+:   lda mel_age         ; 24F 以降は ±1 の遅れビブラート (ガラスの揺らぎ)
+    cmp #24
+    bcc @mel_flat
+    lsr
+    lsr
+    lsr
+    and #3
+    tax
+    lda mel_vib,x
+    clc
+    adc mel_per_lo
+    sta $4002
+    clc
+    adc #1              ; デチューン側も同じ揺らぎ (+1 ずれ維持)
+    sta $4006
+@mel_flat:
+    lda mel_vol
     jsr cap_vol
     ora #%10110000
     sta SQ1_VOL
+    ; デチューン (SQ2) はリードより 4 薄く = 透けて重なる
+    lda game_state
+    cmp #4
+    bcc @sq2_env_done   ; ゲーム中の SQ2 は SFX 専用
+    cmp #6
+    bcs @sq2_env_done
+    lda mel_vol
+    sec
+    sbc #4
+    bcs :+
+    lda #0
+:   jsr cap_vol
+    ora #%10110000
+    sta SQ2_VOL
+@sq2_env_done:
     ; ---- 303 ベース: スライド + レゾナンス風ビブラート ----
     jsr bass_update
     ; ---- SFX オーバーレイ (BGM の上から上書き) ----
     jmp sfx_overlay
+
+; ---- ゲームオーバー: BGM を止めて三角波メインの下降ジングル ----
+gameover_update:
+    lda #$30            ; SQ/NOI ミュート
+    sta NOI_VOL
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+    ldx snd_tick
+    inx
+    beq :+              ; 255 で張り付き (鳴り終わり)
+    stx snd_tick
+:   txa
+    lsr
+    lsr
+    lsr
+    lsr                 ; 16F = 1ステップ
+    cmp #8
+    bcs @go_end
+    tay
+    lda go_pat,y
+    beq @go_end
+    tax
+    lda bass_lo_tbl,x
+    sta TRI_LO
+    lda bass_hi_tbl,x
+    sta TRI_HI
+    lda #$FF
+    sta TRI_LIN
+    rts
+@go_end:
+    lda #$80
+    sta TRI_LIN
+    rts
 
 ; ---- 音量キャップ (フェードイン): A = min(A, snd_fade) ----
 cap_vol:
@@ -447,10 +541,13 @@ bass_update:
 sfx_overlay:
     ; --- SQ1: ジャンプ (上昇スイープ) / ミス (下降3音) ---
     lda sfx1_type
-    beq @sq2
-    ldx sfx1_t
+    bne :+
+    jmp @sq2
+:   ldx sfx1_t
     cmp #2
     beq @miss
+    cmp #3
+    beq @startse
     cpx #14             ; ジャンプ: 14F の上昇スイープ
     bcs @end1
     txa
@@ -467,6 +564,28 @@ sfx_overlay:
     lda #%11111000
     sta $4003
 :   lda #%10110111      ; vol 7
+    sta SQ1_VOL
+    inc sfx1_t
+    jmp @sq2
+@startse:
+    cpx #32             ; 開始ジングル: C4 E4 G4 C5 の上昇 (32F)
+    bcs @end1
+    txa
+    lsr
+    lsr
+    lsr
+    tay
+    lda start_seq,y
+    tay
+    lda pulse_lo_tbl,y
+    sta $4002
+    txa
+    and #7
+    bne :+
+    lda pulse_hi_tbl,y
+    ora #%11111000
+    sta $4003
+:   lda #%10111000      ; デューティ50% vol 8
     sta SQ1_VOL
     inc sfx1_t
     jmp @sq2
@@ -699,4 +818,7 @@ pulse_hi_tbl: .byte 0,  2,  2,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  1,  0,  
 ; ビブラート: 浅 (±2) と 深 (±6, ノート直後のレゾナンス風)
 vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
 vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
+mel_vib:  .byte 0,1,0,$FF           ; リードの遅れビブラート (±1)
+start_seq: .byte 4,6,8,10           ; 開始ジングル C4 E4 G4 C5
+go_pat:    .byte 9,8,7,6,4,3,3,0    ; ゲームオーバー: A3 G3 F3 E3 C3 A2 A2
 .segment "CODE"

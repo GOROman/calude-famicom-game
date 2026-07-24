@@ -113,6 +113,8 @@ blink_again:  .res 1    ; 1=2連目パチ予約
 rng:          .res 1    ; 8bit LFSR (目パチの間隔ランダム化)
 title_exit:   .res 1    ; タイトル退場演出 (0=なし, 1〜=ウィンク→フェード)
 fade_amt:     .res 1    ; パレットフェードの減算量 (NMI が適用)
+mel_per_lo:   .res 1    ; メロディの基準周期 (ビブラート用)
+mel_age:      .res 1    ; ノートオンからの経過フレーム
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -229,12 +231,10 @@ nmi:
     sta PPUCTRL
     jsr write_column
 @no_col:
-    ; ---- タイトル退場: パレットフェードアウト (BG 16バイトを暗転) ----
+    ; ---- タイトル: BG パレットを毎フレーム書く (fade_amt で明暗制御) ----
     lda game_state
     cmp #4
     bne @no_fade
-    lda fade_amt
-    beq @no_fade
     bit PPUSTATUS
     ldy #$3F
     sty PPUADDR
