@@ -32,6 +32,64 @@ def cleanup(g):
                     for (cx,cy) in comp: g[cy][cx]='.'
                     removed+=len(comp)
     return removed
+# ---- 前処理2: 3状態で共通のピクセルは BG タイルへ焼き込み (スプライト不要化) ----
+# 併せて「元のBGと同色」のピクセルもスプライトから除外する
+import shutil
+PRIS = ROOT+'assets/title_chr.pristine'
+if not os.path.exists(PRIS):
+    shutil.copy(ROOT+'assets/title_chr.s', PRIS)      # 初回に原本を保存 (焼き込みの累積を防ぐ)
+def parse_bytes(text):
+    out=[]
+    for line in text.splitlines():
+        line=line.strip()
+        m=re.match(r'\.res (\d+), \$00', line)
+        if m: out += [0]*int(m.group(1)); continue
+        if line.startswith('.byte'):
+            out += [int(v,16) for v in re.findall(r'\$([0-9A-Fa-f]{2})', line)]
+    return out
+chrb=parse_bytes(open(PRIS).read())
+scr0=open(ROOT+'assets/title_screen.s').read()
+ntattr=parse_bytes(scr0[scr0.index('title_nt:'):])
+nt=ntattr[:960]; attr=ntattr[960:1024]
+palb=parse_bytes(scr0[scr0.index('title_img_palette:'):scr0.index('title_nt:')])[:16]
+from collections import Counter as _C
+usage=_C(nt[:17*32])
+def blockpal(X,Y):
+    a=attr[(Y//32)*8+(X//32)]
+    q=(1 if (X//16)%2 else 0)+(2 if (Y//16)%2 else 0)
+    return (a>>(q*2))&3
+def bg_px(X,Y):
+    tid=nt[(Y//8)*32+X//8]
+    return tid, ((chrb[tid*16+Y%8]>>(7-X%8))&1)|(((chrb[tid*16+8+Y%8]>>(7-X%8))&1)<<1)
+CH2NES={'S':0x37,'B':0x17,'K':-1,'W':0x30}
+baked=0; bgeq=0
+for y in range(RH):
+    for x in range(RW):
+        X,Y=RX+x,RY+y
+        vals={k:layers[k][y][x] for k in ('closed','half','white')}
+        c=vals['closed']
+        tid,bv=bg_px(X,Y)
+        bn = (palb[blockpal(X,Y)*4+bv]&63) if bv else -1
+        if c!='.' and all(v==c for v in vals.values()):
+            # 全状態共通 → BG へ焼き込み (単独使用タイル & パレットに色がある場合のみ)
+            bp=blockpal(X,Y)
+            tgt=None
+            if c=='K': tgt=0
+            else:
+                cols=[palb[bp*4+i]&63 for i in (1,2,3)]
+                if CH2NES[c] in cols: tgt=cols.index(CH2NES[c])+1
+            if tgt is not None and usage[tid]==1:
+                b=7-X%8; r=Y%8
+                chrb[tid*16+r]   = (chrb[tid*16+r]   & ~(1<<b)) | ((tgt&1)<<b)
+                chrb[tid*16+8+r] = (chrb[tid*16+8+r] & ~(1<<b)) | (((tgt>>1)&1)<<b)
+                for k in layers: layers[k][y][x]='.'
+                baked+=1
+                continue
+        for k in layers:                              # BG と同色ならスプライト不要
+            v=layers[k][y][x]
+            if v!='.' and CH2NES[v]==bn:
+                layers[k][y][x]='.'; bgeq+=1
+print(f'BG焼き込み {baked}px / BG同色除外 {bgeq}px')
 for k in layers:
     n=cleanup(layers[k])
     if n: print(f'{k}: 孤立ドット {n}px を除去')
@@ -125,17 +183,7 @@ near_n = sum(1 for s in tables['closed'] if s[2]>=193)
 print('tiles:',len(tiles),'sprs:',{k:len(v) for k,v in tables.items()},'near:',near_n)
 
 # ---- title_chr.s: PT0 スロット書き換え ----
-def parse_bytes(text):
-    out=[]
-    for line in text.splitlines():
-        line=line.strip()
-        m=re.match(r'\.res (\d+), \$00', line)
-        if m: out += [0]*int(m.group(1)); continue
-        if line.startswith('.byte'):
-            out += [int(v,16) for v in re.findall(r'\$([0-9A-Fa-f]{2})', line)]
-    return out
-chrb=parse_bytes(open(ROOT+'assets/title_chr.s').read())
-assert len(chrb)==8192
+assert len(chrb)==8192   # (前処理で pristine から読み込み+焼き込み済み)
 for k,(t,_pal) in enumerate(tiles):
     tid=FREED[k]
     p0=[];p1=[]
