@@ -144,6 +144,85 @@ draw_items:
     bpl @loop
     rts
 
+; ---- コイン収集: プレイヤー中心のメタ列にコインがあれば取得 ----
+update_coins:
+    lda player_y        ; 縦: コイン行22 (y176-183) と重なるか
+    cmp #184
+    bcs @done
+    cmp #145
+    bcc @done
+    lda world_x_lo      ; メタ列 = (プレイヤー中心 x) >> 4
+    clc
+    adc #8
+    sta tmp
+    lda world_x_hi
+    adc #0
+    lsr
+    ror tmp
+    lsr
+    ror tmp
+    lsr
+    ror tmp
+    lsr
+    ror tmp
+    lda tmp
+    and #63
+    tay
+    jsr coin_at
+    bcc @done
+    ; ---- 取得! ----
+    lda tmp
+    and #63
+    pha
+    and #7
+    tax
+    pla
+    pha
+    lsr
+    lsr
+    lsr
+    tay
+    lda coin_taken,y
+    ora coin_bit_tbl,x
+    sta coin_taken,y
+    inc coin_ones       ; カウント +1 (10進2桁, 99 でサチュレート)
+    lda coin_ones
+    cmp #10
+    bcc @count_ok
+    lda #0
+    sta coin_ones
+    inc coin_tens
+    lda coin_tens
+    cmp #10
+    bcc @count_ok
+    lda #9
+    sta coin_tens
+    sta coin_ones
+@count_ok:
+    lda #2              ; コイン = 200点
+    jsr add_score
+    jsr sfx_coin
+    ; ---- BG タイル消去を NMI にキュー ----
+    pla                 ; メタ列
+    asl
+    clc
+    adc #1              ; 右半列
+    and #63             ; 2画面リング内の tile 列
+    tax
+    and #31
+    clc
+    adc #$C0            ; 行22 = $2C0
+    sta coin_ppu_lo
+    lda #$22            ; $2000 + $2C0 の上位
+    sta coin_ppu_hi
+    txa
+    and #32
+    beq @done
+    lda #$26            ; 右画面 ($2400)
+    sta coin_ppu_hi
+@done:
+    rts
+
 .segment "RODATA"
 drop_table: .byte 1, 2, 1   ; 敵スロット → ドロップ (星, パワー矢, 星)
 .segment "CODE"

@@ -9,6 +9,7 @@ CAMERA_LOCK = 120                       ; プレイヤーを置く画面 X
 
 TILE_GRASS = $05
 TILE_DIRT  = $06
+TILE_COIN  = $6E
 TILE_BLOCK = $07
 FEAT_PIT   = 5          ; 穴 (地面なし。落ちると死ぬ)
 
@@ -142,6 +143,7 @@ render_column:
     tya
     lsr
     tay
+    sty probe_res       ; メタ列番号を保存 (コイン用)
     lda (level_ptr),y   ; 現在ステージのメタ列フィーチャ
     sta tmp2
     lda #0
@@ -164,6 +166,37 @@ render_column:
     sta col_buf,y
     bne @mtn_fill       ; 常に分岐
 @no_mtn:
+    ; ---- 松の木 (山より手前の飾り) ----
+    ldx tmp3
+    lda pine_tbl,x
+    beq @no_pine
+    tay
+    lda #$6F            ; 天辺
+    sta col_buf,y
+    lda #$70            ; 樹冠 x3
+    iny
+    sta col_buf,y
+    iny
+    sta col_buf,y
+    iny
+    sta col_buf,y
+    lda #$71            ; 幹 (地面まで)
+@pine_trunk:
+    iny
+    cpy #25
+    bcs @no_pine
+    sta col_buf,y
+    bne @pine_trunk     ; 常に分岐
+@no_pine:
+    ; ---- コイン (右半列の行22。未取得のみ) ----
+    lda tmp
+    beq @no_coin
+    ldy probe_res
+    jsr coin_at
+    bcc @no_coin
+    lda #TILE_COIN
+    sta col_buf+22
+@no_coin:
     lda tmp2
     cmp #FEAT_PIT       ; 穴: 地面を描かない (山は残る)
     bne :+
@@ -204,6 +237,28 @@ put_block:
     lda block16_bot,x
     iny
     sta col_buf,y
+    rts
+
+; ---- コイン判定: Y = メタ列 → C=1 コインあり未取得 (A,X,Y 破壊) ----
+coin_at:
+    tya
+    and #7
+    tax
+    tya
+    lsr
+    lsr
+    lsr
+    tay
+    lda (coin_ptr),y
+    and coin_bit_tbl,x
+    beq @none
+    lda coin_taken,y
+    and coin_bit_tbl,x
+    bne @none
+    sec
+    rts
+@none:
+    clc
     rts
 
 ; ---- メタ列のフィーチャ取得: tmp/tmp2 = ワールドX → A (X,Y を破壊) ----
@@ -267,6 +322,10 @@ mtn_top_tbl:  .byte 23,22,21,21,20,21,22,23,24,24,0,24,23,22,22,21
               .byte 20,19,20,21,22,23,24,0,0,24,23,23,22,23,24,24
 mtn_peak_tbl: .byte $6A,$6A,$6D,$6B,$6D,$6C,$6C,$6C,$6D,$6B,$00,$6A,$6A,$6A,$6B,$6D
               .byte $6A,$6D,$6C,$6C,$6C,$6C,$6D,$00,$00,$6A,$6A,$6B,$6D,$6C,$6C,$6B
+coin_bit_tbl: .byte 1,2,4,8,16,32,64,128
+; 松の木: 32列周期 (0=なし, 他=天辺の行)
+pine_tbl: .byte 0,0,0,16,0,0,0,0,0,0,0,0,18,0,0,0
+          .byte 0,0,0,0,0,0,17,0,0,0,0,0,0,0,18,0
 
 ; ステージ 1-1〜1-4 のマップと敵スポーン (levelgen.py 生成)
 .include "../assets/levels.s"

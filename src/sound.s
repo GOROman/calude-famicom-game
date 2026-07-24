@@ -84,6 +84,12 @@ sfx_hit:
     lda #10
     sta sfxn_t
     rts
+sfx_coin:
+    lda #3
+    sta sfx2_type
+    lda #0
+    sta sfx2_t
+    rts
 
 ; ================= メイン更新 (毎フレーム) =================
 update_sound:
@@ -181,6 +187,8 @@ update_sound:
     lda game_state
     cmp #4
     bcc @mel_rest       ; ゲーム中 (0-3) はメロディなし
+    cmp #6
+    bcs @mel_rest       ; ラウンド表示中もなし
     lda snd_fade
     cmp #11
     bcc @mel_rest
@@ -208,6 +216,8 @@ update_sound:
     lda game_state
     cmp #4
     bcc @echo_rest      ; ゲーム中はエコー (メロディ複製) も鳴らさない
+    cmp #6
+    bcs @echo_rest
     lda snd_fade        ; メロディ未スタート中はデチューンも休み
     cmp #11
     bcc @echo_rest
@@ -308,6 +318,8 @@ get_bass:               ; Y = 曲内位置 → A = ベースノート
     lda game_state
     cmp #4
     bcc @game           ; 4=タイトル 5=エンディング はコード進行曲
+    cmp #6
+    bcs @game           ; 6=ラウンド表示 はゲーム曲
     tya
     and #127
     tay
@@ -324,6 +336,8 @@ get_mel:                ; Y = 曲内位置 → A = メロディノート
     lda game_state
     cmp #4
     bcc @game
+    cmp #6
+    bcs @game
     tya
     and #127
     tay
@@ -483,10 +497,13 @@ sfx_overlay:
 @sq2:
     ; --- SQ2: ショット (下降ザップ) / 敵撃破 (上昇アルペジオ) ---
     lda sfx2_type
-    beq @noi
-    ldx sfx2_t
+    bne :+
+    jmp @noi
+:   ldx sfx2_t
     cmp #2
     beq @defeat
+    cmp #3
+    beq @coin
     cpx #10             ; ショット: 10F の下降ザップ
     bcs @end2
     txa
@@ -500,6 +517,30 @@ sfx_overlay:
     lda #%11111000
     sta $4007
 :   lda #%01110110      ; デューティ25% vol 6
+    sta SQ2_VOL
+    inc sfx2_t
+    jmp @noi
+@coin:
+    cpx #16             ; コイン: B5 → E6 のディン (マリオ風)
+    bcs @end2
+    ldy #$70            ; B5
+    cpx #4
+    bcc :+
+    ldy #$54            ; E6
+:   sty $4006
+    cpx #0
+    beq :+
+    cpx #4
+    bne :++
+:   lda #%11111000
+    sta $4007
+:   txa
+    lsr
+    sta tmp
+    lda #12
+    sec
+    sbc tmp
+    ora #%10110000      ; デューティ50%
     sta SQ2_VOL
     inc sfx2_t
     jmp @noi

@@ -37,6 +37,22 @@ start_stage:
 :   dex
     bne @ptr_loop
 @ptr_done:
+    ; coin_ptr = coin_maps + current_stage * 8, 取得フラグをクリア
+    lda current_stage
+    asl
+    asl
+    asl
+    clc
+    adc #<coin_maps
+    sta coin_ptr
+    lda #>coin_maps
+    adc #0
+    sta coin_ptr+1
+    ldx #7
+    lda #0
+:   sta coin_taken,x
+    dex
+    bpl :-
     lda #15             ; ゲーム中はフェードなし (全音量)
     sta snd_fade
     jsr ppu_init        ; パレット + ネームテーブルクリア
@@ -45,7 +61,6 @@ start_stage:
     jsr enemy_init
     jsr boss_init       ; 1-4 ならボス出現
     lda #0
-    sta game_state
     sta scroll_lo
     sta scroll_hi
     sta arrow_flag
@@ -53,10 +68,114 @@ start_stage:
     sta item_flag
     sta item_flag+1
     sta fx_timer
+    ; ---- スーパーマリオ風ラウンド表示 (黒画面 + STAGE 1-N + 残機) ----
+    lda #6
+    sta game_state
+    lda #120            ; 2秒
+    sta state_timer
+    jsr draw_round
     lda #%10000000      ; NMI 再開
     sta PPUCTRL
-    lda #%00011110      ; BG + スプライト表示
+    lda #%00010110      ; スプライトのみ (BG 非表示 = 黒)
     sta PPUMASK
+    rts
+
+; ---- ラウンド表示のスプライトを OAM へ (state 6 の間は他に描画なし) ----
+draw_round:
+    ldx #0              ; OAM 全消し
+    lda #$FF
+:   sta OAM_BUF,x
+    inx
+    bne :-
+    ldx #0              ; 文字インデックス
+    ldy #0              ; OAM オフセット
+@text:                  ; 1行目 "STAGE" (y=88, 5枚)
+    lda round_text,x
+    beq @line2
+    sta OAM_BUF+1,y     ; タイル
+    lda #88
+    sta OAM_BUF,y       ; Y
+    lda #0
+    sta OAM_BUF+2,y     ; 属性
+    txa                 ; X = 108 + i*8
+    asl
+    asl
+    asl
+    clc
+    adc #108
+    sta OAM_BUF+3,y
+    iny
+    iny
+    iny
+    iny
+    inx
+    bne @text           ; 常に分岐
+@line2:                 ; 2行目 "1-N" (y=104, 3枚, スキャンライン8枚制限を回避)
+    lda #104
+    sta OAM_BUF,y
+    sta OAM_BUF+4,y
+    sta OAM_BUF+8,y
+    lda #$91            ; '1'
+    sta OAM_BUF+1,y
+    lda #$8D            ; '-'
+    sta OAM_BUF+5,y
+    lda current_stage
+    clc
+    adc #$91            ; '1'〜'4'
+    sta OAM_BUF+9,y
+    lda #0
+    sta OAM_BUF+2,y
+    sta OAM_BUF+6,y
+    sta OAM_BUF+10,y
+    lda #116
+    sta OAM_BUF+3,y
+    lda #124
+    sta OAM_BUF+7,y
+    lda #132
+    sta OAM_BUF+11,y
+    tya
+    clc
+    adc #12
+    tay
+@icon:
+    ; 顔アイコン x 残機 (y=118)
+    lda #118
+    sta OAM_BUF,y
+    iny
+    lda #$03            ; 顔タイル
+    sta OAM_BUF,y
+    iny
+    lda #0
+    sta OAM_BUF,y
+    iny
+    lda #108
+    sta OAM_BUF,y
+    iny
+    lda #119
+    sta OAM_BUF,y
+    iny
+    lda #$B8            ; 'X'
+    sta OAM_BUF,y
+    iny
+    lda #0
+    sta OAM_BUF,y
+    iny
+    lda #120
+    sta OAM_BUF,y
+    iny
+    lda #119
+    sta OAM_BUF,y
+    iny
+    lda lives
+    clc
+    adc #$90            ; 残機の数字
+    sta OAM_BUF,y
+    iny
+    lda #0
+    sta OAM_BUF,y
+    iny
+    lda #132
+    sta OAM_BUF,y
     rts
 
 ; ---- CNROM の CHR バンク切替 (バス競合回避のためテーブル自身へ書く) ----
@@ -96,6 +215,17 @@ show_title:
     sta PPUDATA
     inx
     cpx #16
+    bne :-
+    bit PPUSTATUS       ; スプライトパレット1 = 顔の肌/茶 (目パチ用)
+    lda #$3F
+    sta PPUADDR
+    lda #$15
+    sta PPUADDR
+    ldx #0
+:   lda title_eye_pal,x
+    sta PPUDATA
+    inx
+    cpx #3
     bne :-
     ; ネームテーブル+属性 1024B を $2000 へ一括転送
     bit PPUSTATUS
@@ -258,6 +388,29 @@ update_title:
     sta OAM_BUF+6
     lda #44
     sta OAM_BUF+7
+    ; ---- 目パチ: 約2秒ごとに 8F 閉じる (スプライトで閉じ目を上書き) ----
+    lda frame_count
+    and #%01111111
+    cmp #8
+    bcs @eyes_open
+    ldx #0
+:   lda title_eye_spr,x
+    sta OAM_BUF+8,x
+    inx
+    cpx #(TITLE_EYE_N*4)
+    bne :-
+    beq @eyes_done      ; 常に分岐
+@eyes_open:
+    ldx #0
+    lda #$FF
+:   sta OAM_BUF+8,x     ; Y を画面外へ
+    inx
+    inx
+    inx
+    inx
+    cpx #(TITLE_EYE_N*4)
+    bne :-
+@eyes_done:
     ; START / A で決定
     lda buttons
     and #(BTN_START | BTN_A)
@@ -282,6 +435,8 @@ update_title:
     sta score+3
     sta weapon_level
     sta star_timer
+    sta coin_ones
+    sta coin_tens
     jmp start_stage
 @done:
     rts
@@ -359,6 +514,8 @@ update_state:
     rts
 @expired:
     lda game_state
+    cmp #6
+    beq @round_go
     cmp #2
     beq @respawn
     cmp #3
@@ -387,6 +544,12 @@ update_state:
     rts
 @to_reset:
     jmp reset
+@round_go:
+    lda #0              ; ラウンド表示終了 → プレイ開始
+    sta game_state
+    lda #%00011110      ; BG + スプライト表示
+    sta PPUMASK
+    rts
 
 ; ---- HUD: 残機 + ステージ番号 + 状態テキスト ----
 draw_hud:
@@ -403,21 +566,24 @@ draw_hud:
     clc
     adc #$90            ; '0' のタイル ($80 + $30-$20)
     sta OAM_BUF+HUD_OAM+5
-    ; ステージ番号 (右上: "1-N")
-    lda #$91            ; '1'
+    ; コイン (右上: アイコン + 2桁。ステージ番号はラウンド画面で表示)
+    lda #$75            ; コインアイコン
     sta OAM_BUF+HUD_OAM+9
-    lda #$8D            ; '-'
-    sta OAM_BUF+HUD_OAM+13
-    lda current_stage
+    lda coin_tens
     clc
-    adc #$91            ; '1'〜'4'
+    adc #$90
+    sta OAM_BUF+HUD_OAM+13
+    lda coin_ones
+    clc
+    adc #$90
     sta OAM_BUF+HUD_OAM+17
     lda #0
     sta OAM_BUF+HUD_OAM+2
     sta OAM_BUF+HUD_OAM+6
-    sta OAM_BUF+HUD_OAM+10
     sta OAM_BUF+HUD_OAM+14
     sta OAM_BUF+HUD_OAM+18
+    lda #1              ; コインアイコンは金色 (パレット1)
+    sta OAM_BUF+HUD_OAM+10
     lda #8
     sta OAM_BUF+HUD_OAM+3
     lda #18
@@ -549,6 +715,7 @@ title_spr_palette:                     ; カーソル用 (白)
     .byte $0F,$0F,$0F,$30
     .byte $0F,$0F,$0F,$30
 title_menu_y: .byte 122, 136, 150      ; START / CONTINUE / OPTION のカーソル Y
+round_text:   .byte $B3,$B4,$A1,$A7,$A5,0  ; "STAGE"
 ending_palette:
     .byte $0F,$0F,$16,$30
     .byte $0F,$0F,$16,$30

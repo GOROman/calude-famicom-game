@@ -102,9 +102,15 @@ boss_timer:   .res 1    ; 行動/演出タイマー
 boss_flash:   .res 1    ; 被弾フラッシュ (無敵時間)
 snd_fade:     .res 1    ; BGM フェードイン (0-15 の音量キャップ)
 mel_note:     .res 1    ; メロディの前ノート (同音はタイ = リトリガしない)
+coin_ones:    .res 1    ; コイン枚数 (10進 下桁)
+coin_tens:    .res 1    ; コイン枚数 (10進 上桁)
+coin_ptr:     .res 2    ; 現在ステージの coin_map ポインタ
+coin_ppu_hi:  .res 1    ; 取得コインの消去先 PPU アドレス (0=なし)
+coin_ppu_lo:  .res 1
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
+coin_taken:   .res 8    ; 取得済みコインのビットマップ (メタ列 0-63)
 
 .segment "CODE"
 reset:
@@ -176,6 +182,7 @@ main_loop:
     jsr update_enemies
     jsr update_boss
     jsr update_items
+    jsr update_coins
     jsr check_clear
 @draw:
     jsr update_camera
@@ -216,12 +223,22 @@ nmi:
     sta PPUCTRL
     jsr write_column
 @no_col:
+    ; ---- 取得コインの BG タイル消去 ----
+    lda coin_ppu_hi
+    beq @no_coin_erase
+    bit PPUSTATUS
+    sta PPUADDR
+    lda coin_ppu_lo
+    sta PPUADDR
+    lda #0
+    sta PPUDATA
+    sta coin_ppu_hi
+@no_coin_erase:
     ; ---- タイトル: パレットサイクルでロゴを輝かせる ----
     lda game_state
     cmp #4
     bne @no_palanim
-    inc frame_count     ; タイトル中は NMI が刻む
-    lda frame_count
+    lda frame_count     ; (update_title が毎フレーム加算)
     and #7
     bne @no_palanim
     lda frame_count
