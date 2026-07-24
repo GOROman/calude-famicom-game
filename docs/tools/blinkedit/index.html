@@ -33,9 +33,13 @@ canvas { image-rendering:pixelated; border:1px solid #555; background:#000; }
       <button id="c-W" onclick="setColor('W')"><span class="sw" style="background:#ecefec"></span>白</button>
       <button id="c-." onclick="setColor('.')"><span class="sw" style="background:#000"></span>消す</button>
       <button onclick="clearLayer()">レイヤー全消去</button>
+      <button onclick="copyLayer()">レイヤーコピー</button>
+      <button onclick="pasteLayer()" id="pastebtn" disabled>ペースト</button>
     </div>
     <canvas id="ed" width="624" height="480"></canvas>
-    <div class="note">クリック/ドラッグで描画。グリッド太線 = 8px タイル境界。背景はタイトル画像 (編集不可)。</div>
+    <div class="note">クリック/ドラッグで描画。グリッド太線 = 8px タイル境界。背景はタイトル画像 (編集不可)。<br>
+    ⌨ <b>1/2/3/4</b>=肌/茶/白/消す ・ <b>カーソルキー</b>=カーソル移動 ・ <b>スペース</b>=ドットを打つ ・ <b>DELETE/BS</b>=黒(消去) ・
+    <b>Q/W/E</b>=閉じ目/半目/白目 ・ <b>C</b>=レイヤーコピー <b>V</b>=ペースト</div>
   </div>
   <div>
     <h2>プレビュー (実機と同じシーケンス)</h2>
@@ -44,12 +48,15 @@ canvas { image-rendering:pixelated; border:1px solid #555; background:#000; }
     <button onclick="setState(0)">開</button>
     <button onclick="setState(1)">半</button>
     <button onclick="setState(2)">閉</button>
-    <h2>書き出し</h2>
+    <h2>書き出し / セーブ・ロード</h2>
     <button onclick="doExport()">JSON 書き出し</button>
     <button onclick="copyExp()">コピー</button>
+    <button onclick="saveJson()">💾 セーブ (blink.json)</button>
+    <label style="background:#333;border:1px solid #666;padding:6px 10px;cursor:pointer">📂 ロード<input type="file" id="loadfile" accept=".json" style="display:none" onchange="loadFile(this)"></label>
+    <button onclick="loadFromText()">テキスト欄から読込</button>
     <div class="note">JSON を tools/apply_blink.py に渡すとアセットへ反映されます。<br>
     タイル上限: 全レイヤー合計 16 枚 / 各状態スプライト 8 枚まで。</div>
-    <textarea id="exp" readonly></textarea>
+    <textarea id="exp" placeholder="ここに JSON を貼り付けて「テキスト欄から読込」も可"></textarea>
     <div id="stat" class="note"></div>
   </div>
 </div>
@@ -60,6 +67,8 @@ const COLORS={'S':'#e4c490','B':'#783c00','W':'#ecefec'};
 let layers={};
 for(const k in DATA.layers) layers[k]=DATA.layers[k].map(r=>r.split(''));
 let cur='closed', pen='S', drawing=false;
+let cx=Math.floor(RW/2), cy=Math.floor(RH/2);   // キーボードカーソル
+let clip=null;                                   // レイヤーコピー用バッファ
 const ed=document.getElementById('ed'), ectx=ed.getContext('2d');
 const bg=new Image(); bg.src='data:image/png;base64,'+DATA.bg;
 bg.onload=()=>{ redraw(); pvDraw(); };
@@ -75,6 +84,10 @@ function redraw(){
   ectx.strokeStyle='rgba(255,255,255,0.15)';
   for(let x=0;x<=RW;x++){ ectx.lineWidth=((DATA.region.x+x)%8===0)?2:0.5; ectx.beginPath(); ectx.moveTo(x*Z,0); ectx.lineTo(x*Z,RH*Z); ectx.stroke(); }
   for(let y=0;y<=RH;y++){ ectx.lineWidth=((DATA.region.y+y)%8===0)?2:0.5; ectx.beginPath(); ectx.moveTo(0,y*Z); ectx.lineTo(RW*Z,y*Z); ectx.stroke(); }
+  // キーボードカーソル
+  ectx.lineWidth=2;
+  ectx.strokeStyle='#ff4';
+  ectx.strokeRect(cx*Z+1,cy*Z+1,Z-2,Z-2);
   stat();
 }
 function paint(e){
@@ -84,7 +97,11 @@ function paint(e){
   layers[cur][y][x]=pen;
   redraw();
 }
-ed.addEventListener('mousedown',e=>{drawing=true;paint(e);});
+ed.addEventListener('mousedown',e=>{drawing=true;paint(e);
+  const r=ed.getBoundingClientRect();
+  cx=Math.max(0,Math.min(RW-1,Math.floor((e.clientX-r.left)/Z)));
+  cy=Math.max(0,Math.min(RH-1,Math.floor((e.clientY-r.top)/Z)));
+});
 ed.addEventListener('mousemove',e=>{if(drawing)paint(e);});
 window.addEventListener('mouseup',()=>drawing=false);
 function setLayer(k){ cur=k; document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('sel')); document.getElementById('tab-'+k).classList.add('sel'); redraw(); }
@@ -161,6 +178,59 @@ function doExport(){
   document.getElementById('exp').value=JSON.stringify(out);
 }
 function copyExp(){ const t=document.getElementById('exp'); t.select(); document.execCommand('copy'); }
+function copyLayer(){ clip=layers[cur].map(r=>r.slice()); document.getElementById('pastebtn').disabled=false; }
+function saveJson(){
+  doExport();
+  const blob=new Blob([document.getElementById('exp').value],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='blink.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function applyJson(txt){
+  try{
+    const d=JSON.parse(txt);
+    if(!d.layers) throw 'layers がありません';
+    if(d.region && (d.region.w!==RW||d.region.h!==RH)) throw `領域サイズ不一致 (${d.region.w}x${d.region.h})`;
+    for(const k of ['closed','half','white']){
+      if(!d.layers[k]) continue;
+      layers[k]=d.layers[k].map(r=>r.padEnd(RW,'.').slice(0,RW).split(''));
+      while(layers[k].length<RH) layers[k].push(Array(RW).fill('.'));
+    }
+    redraw(); pvDraw();
+  }catch(err){ alert('読み込み失敗: '+err); }
+}
+function loadFile(inp){
+  const f=inp.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>applyJson(rd.result);
+  rd.readAsText(f);
+  inp.value='';
+}
+function loadFromText(){ applyJson(document.getElementById('exp').value); }
+function pasteLayer(){ if(clip){ layers[cur]=clip.map(r=>r.slice()); redraw(); } }
+// ---- ショートカットキー ----
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='TEXTAREA') return;
+  const k=e.key;
+  let used=true;
+  if(k==='1') setColor('S');
+  else if(k==='2') setColor('B');
+  else if(k==='3') setColor('W');
+  else if(k==='4') setColor('.');
+  else if(k==='ArrowLeft')  cx=Math.max(0,cx-1);
+  else if(k==='ArrowRight') cx=Math.min(RW-1,cx+1);
+  else if(k==='ArrowUp')    cy=Math.max(0,cy-1);
+  else if(k==='ArrowDown')  cy=Math.min(RH-1,cy+1);
+  else if(k===' ')                     layers[cur][cy][cx]=pen;
+  else if(k==='Delete'||k==='Backspace') layers[cur][cy][cx]='.';
+  else if(k==='q'||k==='Q') setLayer('closed');
+  else if(k==='w'||k==='W') setLayer('half');
+  else if(k==='e'||k==='E') setLayer('white');
+  else if(k==='c'||k==='C') copyLayer();
+  else if(k==='v'||k==='V') pasteLayer();
+  else used=false;
+  if(used){ e.preventDefault(); redraw(); }
+});
 setInterval(()=>{},1e9);
 </script>
 </body>
