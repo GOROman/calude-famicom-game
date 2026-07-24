@@ -113,6 +113,8 @@ update_player:
     jsr probe_feet
     cmp #$FF
     bne @has_ground
+    jsr probe_enemy_platform
+    bcs @has_ground     ; 硬化した敵の上に立っている
     lda #0              ; 足場がない → 落下開始
     sta on_ground
     sta vel_y_lo
@@ -179,9 +181,12 @@ update_player:
     ; ---- 縦衝突 ----
     lda vel_y_hi
     bmi @rising
-    jsr probe_feet      ; 落下中: 足元
+    jsr probe_feet      ; 落下中: 足元 (タイル or 硬化した敵)
     cmp #$FF
-    beq @done
+    bne @land
+    jsr probe_enemy_platform
+    bcc @done
+@land:
     sec                 ; 着地: y = 面の上端 - 32
     sbc #32
     sta player_y

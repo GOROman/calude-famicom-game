@@ -2,7 +2,7 @@
 ; - 歩行: 2フレームに1px、壁と穴で折り返す
 ; - コウモリ: 毎フレーム1px + サイン波で上下に飛ぶ。穴は越える
 ; - ホッパー: プレイヤーめがけて放物線ジャンプ
-; 矢/踏みつけで撃破。踏みは空中コンボで得点倍増
+; 矢を当てると硬化して足場になる (数秒で復活)。撃破は踏みつけのみ (空中コンボで倍増)
 
 ENEMY_GROUND = 184      ; 地上系の接地 Y
 ENEMY_OAM    = 40       ; OAM オフセット (スプライト 10-21: 4枚 x 3体)
@@ -59,10 +59,41 @@ update_enemies:
     jsr spawn_item      ; アイテムをドロップ
     jmp @dying_next
 @chk_respawn:
+    cmp #4
+    bne @chk_wait
+    lda frame_count     ; 硬化: 2フレームに1 (約8.5秒)
+    and #1
+    bne @dying_next
+    dec enemy_timer,x
+    bne @dying_next
+    lda #1              ; 目覚める
+    sta enemy_flag,x
+    lda #0
+    sta enemy_timer,x
+    beq @dying_next     ; 常に分岐
+@chk_wait:
     cmp #3
     bne @dying_next
     dec enemy_timer,x
     bne @dying_next
+    lda enemy_type,x    ; パタパタは元の位置に再登場 (足場パズル維持)
+    cmp #3
+    bne @edge_respawn
+    lda current_stage
+    asl
+    clc
+    adc current_stage
+    sta tmp
+    txa
+    clc
+    adc tmp
+    tay
+    lda stage_enemy_lo,y
+    sta enemy_xlo,x
+    lda stage_enemy_hi,y
+    sta enemy_xhi,x
+    jmp @respawn_common
+@edge_respawn:
     ; 画面右端の先に再登場 (世界の端なら左後方)
     lda scroll_lo
     clc
@@ -80,7 +111,9 @@ update_enemies:
     lda scroll_hi
     sbc #0
     sta enemy_xhi,x
-:   lda #ENEMY_GROUND
+:
+@respawn_common:
+    lda #ENEMY_GROUND
     sta enemy_ypos,x
     lda #1
     sta enemy_flag,x
@@ -89,8 +122,9 @@ update_enemies:
     sta enemy_timer,x
 @dying_next:
     dex
-    bpl @dying_loop
-    ; ---- 移動 (種類別, 生存中のみ) ----
+    bmi :+
+    jmp @dying_loop
+:   ; ---- 移動 (種類別, 生存中のみ) ----
     ldx #2
 @move_loop:
     lda enemy_flag,x
@@ -102,6 +136,9 @@ update_enemies:
     cmp #1
     bne :+
     jmp @bat
+:   cmp #3
+    bne :+
+    jmp @bob
 :   jmp @hopper
 
 @walker:
@@ -266,6 +303,17 @@ update_enemies:
     lda #0
     sta enemy_dir,x
 @h_done:
+    jmp @move_next
+@bob:
+    inc enemy_timer,x   ; パタパタ: X 固定で上下にゆっくり往復 (踏み台)
+    lda enemy_timer,x
+    lsr
+    and #63
+    tay
+    lda #ENEMY_GROUND
+    sec
+    sbc bob_wave,y
+    sta enemy_ypos,x
 @move_next:
     dex
     bmi @collisions
@@ -277,6 +325,8 @@ update_enemies:
 @col_loop:
     lda enemy_flag,x
     cmp #1
+    beq :+
+    cmp #4
     beq :+
     jmp @col_next
 :   ; --- 矢 (2スロット) ---
@@ -308,32 +358,43 @@ update_enemies:
     lda tmp
     cmp #23
     bcs @arrow_next
-    lda weapon_level    ; 命中! パワー矢は貫通する (通常矢は消える)
-    bne :+
-    lda #0
+    lda #0              ; 命中! 矢は消費
     sta arrow_flag,y
-:   lda enemy_ypos,x
-    clc
-    adc #4
-    jsr kill_enemy
-    lda #1              ; 矢で撃破 = 100点
+    lda enemy_flag,x    ; すでに硬化中なら時間をリセットするだけ
+    cmp #4
+    beq @refreeze
+    lda #4              ; 硬化! 足場になる
+    sta enemy_flag,x
+    lda #2
+    sta hitstop
+    jsr sfx_hit
+    lda #1              ; 硬化 = 100点
     jsr add_score
+@refreeze:
+    lda #255
+    sta enemy_timer,x
     jmp @col_next
 @arrow_next:
     iny
     cpy #2
     bne @arrow_chk
-    ; --- プレイヤー接触 (d = 足元 - 敵上端 が 1..47 で重なり) ---
-    lda player_y
+    ; --- プレイヤー接触 (生存中のみ。硬化中は足場なので無害) ---
+    lda enemy_flag,x
+    cmp #1
+    beq :+
+    jmp @col_next
+:   lda player_y
     clc
     adc #32
     sec
     sbc enemy_ypos,x
-    beq @col_next
-    bcc @col_next
+    beq @col_skip
+    bcc @col_skip
     cmp #48
-    bcs @col_next
-    sta tmp3            ; めり込み深さ
+    bcc :+
+@col_skip:
+    jmp @col_next
+:   sta tmp3            ; めり込み深さ
     lda world_x_lo      ; 横: (px+13) - ex が 0..26 なら接触
     clc
     adc #13
@@ -377,9 +438,16 @@ update_enemies:
     jsr add_score
     lda #0
     sta vel_y_lo
-    lda #$FD            ; プレイヤーは -3.0 でバウンド
+    lda #$FD            ; バウンド -3.0 (A 押しなら -4.25 の大ジャンプ)
     sta vel_y_hi
-    lda player_y
+    lda buttons
+    and #BTN_A
+    beq :+
+    lda #$C0
+    sta vel_y_lo
+    lda #$FB
+    sta vel_y_hi
+:   lda player_y
     sta jump_origin_y
     jmp @col_next
 @player_die:
@@ -397,6 +465,49 @@ update_enemies:
     bmi @done
     jmp @col_loop
 @done:
+    rts
+
+; ---- 硬化した敵の足場判定: C=1 → A = 敵の上端 Y ----
+; プレイヤーの足元 (y+32) が敵上端の -1..+6 かつ横が重なっていれば乗れる
+probe_enemy_platform:
+    ldx #2
+@pl:
+    lda enemy_flag,x
+    cmp #4
+    bne @pn
+    lda player_y
+    clc
+    adc #32
+    sec
+    sbc enemy_ypos,x
+    clc
+    adc #1
+    cmp #8
+    bcs @pn
+    lda world_x_lo
+    clc
+    adc #13
+    sta tmp
+    lda world_x_hi
+    adc #0
+    sta tmp2
+    lda tmp
+    sec
+    sbc enemy_xlo,x
+    sta tmp
+    lda tmp2
+    sbc enemy_xhi,x
+    bne @pn
+    lda tmp
+    cmp #27
+    bcs @pn
+    lda enemy_ypos,x
+    sec
+    rts
+@pn:
+    dex
+    bpl @pl
+    clc
     rts
 
 ; ---- 敵を倒す: A = エフェクト Y, X = 敵スロット ----
@@ -475,19 +586,35 @@ draw_enemies:
     ldx #0              ; スロット
     ldy #ENEMY_OAM      ; OAM オフセット
 @loop:
+    lda #ENEMY_ATTR
+    sta tmp2            ; この体の属性 (硬化中は石パレット)
     lda enemy_flag,x
     bne :+
     jmp @hide
 :   cmp #3
     bne :+
     jmp @hide
+:   cmp #4
+    bne :+
+    lda #3              ; 石化 = パレット3 (灰色)
+    sta tmp2
+    lda enemy_timer,x   ; 復活間際 (残り50) はパレット点滅で警告
+    cmp #50
+    bcs @alive_tiles
+    lda frame_count
+    and #4
+    beq @alive_tiles
+    lda #ENEMY_ATTR
+    sta tmp2
+    bne @alive_tiles
 :   cmp #2
     bne @alive_tiles
     lda enemy_timer,x   ; 消失アニメ: 後半 (残り12F以下) は点滅
     cmp #13
     bcs @hurt_tiles
     and #2
-    bne @hide
+    beq @hurt_tiles
+    jmp @hide
 @hurt_tiles:
     lda enemy_type,x    ; ダメージ顔は歩行型のみ (他は点滅で表現)
     bne @alive_tiles
@@ -496,7 +623,15 @@ draw_enemies:
 @alive_tiles:
     lda enemy_type,x
     cmp #1
+    beq @bat_tiles
+    cmp #3
     bne @ket_base
+    lda enemy_flag,x    ; パタパタ = 緑のコウモリ絵 (硬化中は灰のまま)
+    cmp #4
+    beq @bat_tiles
+    lda #2
+    sta tmp2
+@bat_tiles:
     lda frame_count     ; コウモリ: 8Fごとに羽ばたき
     and #%00001000
     beq :+
@@ -531,7 +666,7 @@ draw_enemies:
     sta OAM_BUF+9,y
     adc #1
     sta OAM_BUF+13,y
-    lda #ENEMY_ATTR
+    lda tmp2
     sta OAM_BUF+2,y
     sta OAM_BUF+6,y
     sta OAM_BUF+10,y
@@ -592,6 +727,7 @@ draw_enemies:
     rts
 
 .segment "RODATA"
+bob_wave: .byte 0,2,5,7,10,12,15,17,20,22,25,27,30,32,35,37,40,42,45,47,50,52,55,57,60,62,65,67,70,72,75,77,80,77,75,72,70,67,65,62,60,57,55,52,50,47,45,42,40,37,35,32,30,27,25,22,20,17,15,12,10,7,5,2
 bat_wave: .byte 20,23,27,31,34,36,38,39,40,39,38,36,34,31,27,23,20,16,12,8,5,3,1,0,0,0,1,3,5,8,12,16
 hop_arc:  .byte 0,2,4,6,8,10,12,13,15,17,18,19,20,22,23,24,24,25,26,26,27,27,27,27,27,27,27,27,27,26,26,25,24,24,23,22,20,19,18,17,15,13,12,10,8,6,4,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 .segment "CODE"

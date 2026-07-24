@@ -175,6 +175,23 @@ render_column:
     lda #TILE_COIN
     sta col_buf+22
 @no_coin:
+    ; ---- ゴールの旗 (メタ列63) ----
+    lda probe_res
+    cmp #63
+    bne @no_flag
+    lda tmp
+    beq @flag_left
+    ldy #12             ; 右半分 = ポール (行12-24)
+    lda #$6F
+:   sta col_buf,y
+    iny
+    cpy #25
+    bne :-
+    beq @no_flag        ; 常に分岐
+@flag_left:
+    lda #$70            ; 左半分 = 旗 (行12)
+    sta col_buf+12
+@no_flag:
     lda tmp2
     cmp #FEAT_PIT       ; 穴: 地面を描かない (山は残る)
     bne :+
