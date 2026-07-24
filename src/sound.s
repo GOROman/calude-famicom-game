@@ -176,14 +176,14 @@ update_sound:
     lda #$80            ; 消音 (cur は保持 → 次ノートへスライド)
     sta TRI_LIN
 @melody:
-    ; ---- メロディ (SQ1): フェード終盤 (ドラム→ベースの後) にスタート ----
+    ; ---- メロディ (SQ1): ゲーム中は鳴らさない / タイトルはフェード終盤から ----
     lda game_state
     cmp #4
-    bcc :+
+    bcc @mel_rest       ; ゲーム中 (0-3) はメロディなし
     lda snd_fade
     cmp #11
     bcc @mel_rest
-:   ldy tmp
+    ldy tmp
     jsr get_mel
     beq @mel_rest
     tax
@@ -202,7 +202,7 @@ update_sound:
     ; ---- SQ2: タイトル/ED=デチューンユニゾン (DQ2風) / ゲーム=2ステップ遅れエコー ----
     lda game_state
     cmp #4
-    bcc @echo_mode
+    bcc @echo_rest      ; ゲーム中はエコー (メロディ複製) も鳴らさない
     lda snd_fade        ; メロディ未スタート中はデチューンも休み
     cmp #11
     bcc @echo_rest
