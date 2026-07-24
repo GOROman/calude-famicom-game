@@ -267,7 +267,7 @@ show_title:
     bne :-
     lda #TITLE_SPR0_Y
     sta OAM_BUF+0
-    lda #254            ; ソリッドタイル
+    lda #255            ; カーソルタイルを流用 (不透明画素があれば sprite0 ヒットする)
     sta OAM_BUF+1
     lda #%00100000      ; 優先度: BG の後ろ
     sta OAM_BUF+2

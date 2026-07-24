@@ -5,7 +5,7 @@
 # テーブル: assets/title_screen.s の TITLE_EYE_* を再生成
 import re, sys, json, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/'
-FREED = [206,100,232,224,251,172,179,181,21,203,242,204,177,215,194,229]
+FREED = [206,100,232,224,251,172,179,181,21,203,242,204,177,215,194,229,254]  # 254=旧ソリッド (sprite0 はカーソル流用)
 CHARV = {'.':0,'S':1,'B':2,'W':3,'K':3}   # W/K はどちらも色3 (パレットで白/黒に分かれる)
 
 data = json.load(open(sys.argv[1]))
@@ -90,10 +90,13 @@ for name in ('closed','half','white'):
         assert n<=8, f'{name}: y={y} でスプライトが横に {n} 枚 (走査線8枚制限)'
     tables[name]=sprs
 if len(tiles) > len(FREED):
-    # 半目レイヤーを捨て、閉じ目スプライトを 4px 上へずらして半目にする (タイル節約)
-    print(f'タイル {len(tiles)} 枚 > {len(FREED)} — 半目を閉じ目の位置ずらしで自動生成します')
+    # 半目レイヤーを捨て、「閉じ目をまぶたラインでクリップ」した自動半目に切替
+    print(f'タイル {len(tiles)} 枚 > {len(FREED)} — 半目を閉じ目のクリップで自動生成します')
+    c_ys=[y for y in range(RH) if any(c!='.' for c in layers['closed'][y])]
+    lid = c_ys[0] + int((c_ys[-1]-c_ys[0])*0.62) if c_ys else 0
+    layers['half'] = [[layers['closed'][y][x] if y<=lid else '.' for x in range(RW)] for y in range(RH)]
     tiles=[]; tables={}
-    for name in ('closed','white'):
+    for name in ('closed','white','half'):
         g=layers[name]
         sprs=[]
         for (bx,by) in pack(name, g):
@@ -115,15 +118,6 @@ if len(tiles) > len(FREED):
                 sprs.append((RY+by-1, tiles.index(key), RX+bx, pal))
         assert len(sprs)<=SPR_MAX, f'{name}: スプライト {len(sprs)} 枚 ({SPR_MAX}まで)'
         tables[name]=sprs
-    # 半目 = 閉じ目の上段バンド + 第2バンドを4px上げて重ねる (まぶたが目の6割を覆う)
-    c_rows = sorted(set(y for (y,_,_,_) in tables['closed']))
-    top_y = c_rows[0] if c_rows else 0
-    lid0 = [(y,t,x,p) for (y,t,x,p) in tables['closed'] if y==top_y]
-    lid1 = [(y-4,t,x,p) for (y,t,x,p) in tables['closed'] if len(c_rows)>1 and y==c_rows[1]]
-    w_rows = sorted(set(y for (y,_,_,_) in tables['white']))
-    below= [(y,t,x,p) for (y,t,x,p) in tables['white'] if len(w_rows)>2 and y>=w_rows[2]]
-    tables['half'] = lid0 + lid1 + below
-    assert len(tables['half'])<=SPR_MAX
 assert len(tiles)<=len(FREED), f'タイル {len(tiles)} 枚 (16まで)'
 # ウィンク用: 閉じ目は手前の目 (x>=193) を先頭に並べる
 tables['closed'].sort(key=lambda s: 0 if s[2]>=193 else 1)
