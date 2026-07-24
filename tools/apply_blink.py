@@ -115,11 +115,14 @@ if len(tiles) > len(FREED):
                 sprs.append((RY+by-1, tiles.index(key), RX+bx, pal))
         assert len(sprs)<=SPR_MAX, f'{name}: スプライト {len(sprs)} 枚 ({SPR_MAX}まで)'
         tables[name]=sprs
-    # 半目 = 白目 (開き目) + 閉じ目の中段まぶたを 3px 上に重ねる
-    mid = sorted(set(y for (y,_,_,_) in tables['closed']))
-    mid_y = mid[len(mid)//2] if mid else 0
-    lid = [(y-3, t, x, p) for (y,t,x,p) in tables['closed'] if y==mid_y]
-    tables['half'] = lid + tables['white']
+    # 半目 = 閉じ目の上段バンド + 第2バンドを4px上げて重ねる (まぶたが目の6割を覆う)
+    c_rows = sorted(set(y for (y,_,_,_) in tables['closed']))
+    top_y = c_rows[0] if c_rows else 0
+    lid0 = [(y,t,x,p) for (y,t,x,p) in tables['closed'] if y==top_y]
+    lid1 = [(y-4,t,x,p) for (y,t,x,p) in tables['closed'] if len(c_rows)>1 and y==c_rows[1]]
+    w_rows = sorted(set(y for (y,_,_,_) in tables['white']))
+    below= [(y,t,x,p) for (y,t,x,p) in tables['white'] if len(w_rows)>2 and y>=w_rows[2]]
+    tables['half'] = lid0 + lid1 + below
     assert len(tables['half'])<=SPR_MAX
 assert len(tiles)<=len(FREED), f'タイル {len(tiles)} 枚 (16まで)'
 # ウィンク用: 閉じ目は手前の目 (x>=193) を先頭に並べる
