@@ -91,6 +91,16 @@ probe_res:    .res 1    ; probe_two の中間結果
 text_ptr:     .res 2    ; 状態テキストのテーブルポインタ
 score:        .res 4    ; スコア (100点単位の10進4桁, index0=最上位)
 menu_sel:     .res 1    ; タイトルメニュー選択 (0=START 1=CONTINUE 2=OPTION)
+boss_state:   .res 1    ; ボス: 0=不在 1=生存 2=撃破演出
+boss_hp:      .res 1
+boss_xlo:     .res 1    ; ワールド X (16bit)
+boss_xhi:     .res 1
+boss_y:       .res 1
+boss_vy_lo:   .res 1    ; 縦速度 (8.8)
+boss_vy_hi:   .res 1
+boss_timer:   .res 1    ; 行動/演出タイマー
+boss_flash:   .res 1    ; 被弾フラッシュ (無敵時間)
+snd_fade:     .res 1    ; BGM フェードイン (0-15 の音量キャップ)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -146,16 +156,24 @@ main_loop:
     lda game_state
     beq @playing
     cmp #4
+    bne :+
+    jsr update_title    ; タイトル画面 (メニュー選択)
+    jmp @finish
+:   cmp #5
     bne @in_state
-    jsr update_title    ; タイトル画面 (START 待ち + PUSH START 点滅)
+    jsr update_ending   ; エンディング (START でタイトルへ)
     jmp @finish
 @in_state:
     jsr update_state    ; クリア/死亡/ゲームオーバー演出中
+    lda game_state      ; 演出からタイトル/エンディングへ遷移したら
+    cmp #4              ; このフレームの描画はスキップ (OAM 残留防止)
+    bcs @finish
     jmp @draw
 @playing:
     jsr update_player
     jsr update_arrows
     jsr update_enemies
+    jsr update_boss
     jsr update_items
     jsr check_clear
 @draw:
@@ -163,6 +181,7 @@ main_loop:
     jsr draw_player
     jsr draw_arrows
     jsr draw_enemies
+    jsr draw_boss
     jsr draw_items
     jsr draw_hud
 @finish:
@@ -253,6 +272,7 @@ irq:
 .include "item.s"
 .include "state.s"
 .include "sound.s"
+.include "boss.s"
 
 .segment "VECTORS"
     .addr nmi, reset, irq

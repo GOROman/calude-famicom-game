@@ -50,6 +50,8 @@ sound_init:
     sta sfxn_t
     sta bass_cur_lo
     sta bass_cur_hi
+    lda #15
+    sta snd_fade
     rts
 
 ; ---- SFX トリガ API ----
@@ -100,6 +102,17 @@ update_sound:
     sta SQ2_VOL
     jmp sfx_overlay
 @not_dead:
+    ; ---- フェードイン (タイトル画面で 0→15) ----
+    lda game_state
+    cmp #4
+    bne @fade_done
+    lda snd_tick
+    bne @fade_done
+    lda snd_fade
+    cmp #15
+    bcs @fade_done
+    inc snd_fade
+@fade_done:
     lda snd_tick
     beq :+
     jmp @no_step
@@ -112,7 +125,12 @@ update_sound:
     ora snd_step
     sta tmp             ; tmp = 曲内位置 (0-63)
     ldx snd_step
-    lda drum_pat,x
+    lda snd_fade
+    cmp #8
+    bcs :+
+    ldx #0              ; フェード前半はドラムなし
+    beq @no_drums
+:   lda drum_pat,x
     tax                 ; X = ドラムビット
     and #2              ; スネア (DMC は1本なのでキックより優先)
     beq @try_kick
@@ -123,6 +141,7 @@ update_sound:
     and #1
     beq @drums_done
     jsr trig_kick
+@no_drums:
 @drums_done:
     txa
     and #4              ; クローズハット
@@ -182,10 +201,10 @@ update_sound:
     lda #0
     sta mel_vol
 @echo:
-    ; ---- SQ2: タイトル=デチューンユニゾン (DQ2風の広がり) / ゲーム=2ステップ遅れエコー ----
+    ; ---- SQ2: タイトル/ED=デチューンユニゾン (DQ2風) / ゲーム=2ステップ遅れエコー ----
     lda game_state
     cmp #4
-    bne @echo_mode
+    bcc @echo_mode
     ldy tmp             ; デチューン: 同じノートを周期+1 でずらして重ねる
     jsr get_mel
     beq @echo_rest
@@ -198,7 +217,9 @@ update_sound:
     adc #0
     ora #%11111000
     sta $4007
-    lda #%10110110      ; デューティ50% 音量6 (厚いユニゾン)
+    lda #6
+    jsr cap_vol
+    ora #%10110000      ; デューティ50% (厚いユニゾン)
     sta SQ2_VOL
     jmp @no_step
 @echo_mode:
@@ -247,6 +268,7 @@ update_sound:
     bcs :+
     lda #0
 :   sta hat_vol
+    jsr cap_vol
     ora #$30
     sta NOI_VOL
 @hat_done:
@@ -260,6 +282,7 @@ update_sound:
     bne :+
     dec mel_vol
 :   lda mel_vol
+    jsr cap_vol
     ora #%10110000
     sta SQ1_VOL
     ; ---- 303 ベース: スライド + レゾナンス風ビブラート ----
@@ -267,11 +290,18 @@ update_sound:
     ; ---- SFX オーバーレイ (BGM の上から上書き) ----
     jmp sfx_overlay
 
+; ---- 音量キャップ (フェードイン): A = min(A, snd_fade) ----
+cap_vol:
+    cmp snd_fade
+    bcc :+
+    lda snd_fade
+:   rts
+
 ; ---- 曲別のパターン参照 (タイトル=64ステップのコード進行, ゲーム=Am グルーヴ) ----
 get_bass:               ; Y = 曲内位置 → A = ベースノート
     lda game_state
     cmp #4
-    bne @game
+    bcc @game           ; 4=タイトル 5=エンディング はコード進行曲
     tya
     and #63
     tay
@@ -287,7 +317,7 @@ get_bass:               ; Y = 曲内位置 → A = ベースノート
 get_mel:                ; Y = 曲内位置 → A = メロディノート
     lda game_state
     cmp #4
-    bne @game
+    bcc @game
     tya
     and #63
     tay
@@ -356,7 +386,12 @@ bass_update:
     bcc @write
     inc bass_cur_hi
 @write:
-    ; --- ビブラート: ノート直後 (12F) は深い ±6 → 以後 ±2。うねり=レゾナンス風 ---
+    lda snd_fade        ; フェード前半はベースも消音
+    cmp #4
+    bcs :+
+    lda #$80
+    sta TRI_LIN
+:   ; --- ビブラート: ノート直後 (12F) は深い ±6 → 以後 ±2。うねり=レゾナンス風 ---
     lda vib_phase
     lsr
     and #15

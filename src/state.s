@@ -37,10 +37,13 @@ start_stage:
 :   dex
     bne @ptr_loop
 @ptr_done:
+    lda #15             ; ゲーム中はフェードなし (全音量)
+    sta snd_fade
     jsr ppu_init        ; パレット + ネームテーブルクリア
     jsr level_init      ; 最初の2画面分を描画
     jsr player_init
     jsr enemy_init
+    jsr boss_init       ; 1-4 ならボス出現
     lda #0
     sta game_state
     sta scroll_lo
@@ -73,6 +76,7 @@ show_title:
     sta scroll_lo
     sta scroll_hi
     sta menu_sel
+    sta snd_fade        ; BGM フェードイン開始
     lda #1
     jsr set_chr_bank
     ; パレット: BG は画像から生成した4本, スプライトはカーソル用の白
@@ -134,6 +138,90 @@ show_title:
     sta PPUCTRL
     lda #%00011110
     sta PPUMASK
+    rts
+
+; ---- エンディング画面: 1-4 クリアで到達 ----
+show_ending:
+    lda #0
+    sta PPUCTRL
+    sta PPUMASK
+    sta nmi_ready
+    sta scroll_lo
+    sta scroll_hi
+    jsr set_chr_bank    ; A=0: フォントのあるゲームバンク
+    lda #15
+    sta snd_fade
+    jsr ppu_init        ; ネームテーブルクリア
+    bit PPUSTATUS       ; 黒背景 + 白/赤文字のパレット
+    lda #$3F
+    sta PPUADDR
+    lda #$00
+    sta PPUADDR
+    ldx #0
+:   lda ending_palette,x
+    sta PPUDATA
+    inx
+    cpx #16
+    bne :-
+    ; テキスト行を書く
+    ldx #0
+@lines:
+    lda ending_lines,x      ; PPU アドレス hi
+    beq @lines_done
+    pha
+    inx
+    lda ending_lines,x      ; lo
+    pha
+    inx
+    lda ending_lines,x      ; テキストポインタ lo
+    sta text_ptr
+    inx
+    lda ending_lines,x      ; hi
+    sta text_ptr+1
+    inx
+    pla
+    tay
+    pla
+    jsr write_bg_text
+    jmp @lines
+@lines_done:
+    ldx #0                  ; スプライト全消し
+    lda #$FF
+:   sta OAM_BUF,x
+    inx
+    bne :-
+    lda #5
+    sta game_state
+    lda #%10000000
+    sta PPUCTRL
+    lda #%00011110
+    sta PPUMASK
+    rts
+
+; ---- BG に 0 終端のタイル列を書く: A=PPUアドレス上位, Y=下位 ----
+write_bg_text:
+    bit PPUSTATUS
+    sta PPUADDR
+    sty PPUADDR
+    ldy #0
+:   lda (text_ptr),y
+    beq :+
+    sta PPUDATA
+    iny
+    bne :-
+:   rts
+
+; ---- エンディングの更新: START でタイトルへ ----
+update_ending:
+    inc frame_count
+    lda buttons
+    and #BTN_START
+    beq @done
+    lda prev_buttons
+    and #BTN_START
+    bne @done
+    jmp show_title
+@done:
     rts
 
 ; ---- タイトルの更新: メニュー選択 + 決定 ----
@@ -199,7 +287,11 @@ update_title:
     rts
 
 ; ---- 一番右 (WORLD_X_MAX) まで行ったらステージクリア! ----
+; ただしボス決意マンが生きている間はクリアできない
 check_clear:
+    lda boss_state
+    cmp #1
+    beq @no
     lda world_x_hi
     cmp #>WORLD_X_MAX
     bcc @no
@@ -271,13 +363,14 @@ update_state:
     beq @respawn
     cmp #3
     beq @to_reset
-    ; クリア → 次のステージへ (1-4 の次は 1-1 に周回)
+    ; クリア → 次のステージへ。1-4 をクリアしたらエンディング!
     inc current_stage
     lda current_stage
     cmp #NUM_STAGES
     bcc :+
     lda #0
     sta current_stage
+    jmp show_ending
 :   jmp start_stage
 @respawn:
     dec lives
@@ -456,4 +549,25 @@ title_spr_palette:                     ; カーソル用 (白)
     .byte $0F,$0F,$0F,$30
     .byte $0F,$0F,$0F,$30
 title_menu_y: .byte 111, 127, 143      ; START / CONTINUE / OPTION のカーソル Y
+ending_palette:
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+    .byte $0F,$0F,$16,$30
+; エンディング行テーブル: PPUアドレス hi, lo, テキストポインタ lo, hi。終端 0
+ending_lines:
+    .byte $21,$08, <end_txt1, >end_txt1   ; 行8  col8:  CONGRATULATIONS!
+    .byte $21,$85, <end_txt2, >end_txt2   ; 行12 col5:  ALL KETSUIMAN DEFEATED
+    .byte $21,$C9, <end_txt3, >end_txt3   ; 行14 col9:  BY YOUR ACTION
+    .byte $22,$8A, <end_txt4, >end_txt4   ; 行20 col10: PRESENTED BY
+    .byte $22,$C7, <end_txt5, >end_txt5   ; 行22 col7:  GOROMAN AND CLAUDE
+    .byte $23,$4C, <end_txt6, >end_txt6   ; 行26 col12: THE END
+    .byte 0
+; ASCII → タイル ($80 + c - $20)
+end_txt1: .byte $A3,$AF,$AE,$A7,$B2,$A1,$B4,$B5,$AC,$A1,$B4,$A9,$AF,$AE,$B3,$81,0
+end_txt2: .byte $A1,$AC,$AC,$80,$AB,$A5,$B4,$B3,$B5,$A9,$AD,$A1,$AE,$80,$A4,$A5,$A6,$A5,$A1,$B4,$A5,$A4,0
+end_txt3: .byte $A2,$B9,$80,$B9,$AF,$B5,$B2,$80,$A1,$A3,$B4,$A9,$AF,$AE,0
+end_txt4: .byte $B0,$B2,$A5,$B3,$A5,$AE,$B4,$A5,$A4,$80,$A2,$B9,0
+end_txt5: .byte $A7,$AF,$B2,$AF,$AD,$A1,$AE,$80,$A1,$AE,$A4,$80,$A3,$AC,$A1,$B5,$A4,$A5,0
+end_txt6: .byte $B4,$A8,$A5,$80,$A5,$AE,$A4,0
 .segment "CODE"

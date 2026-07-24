@@ -146,52 +146,52 @@
 ; tile $80-$BF: ASCII フォント ($20-$5F)
 .include "font.s"
 
-; ---- タイトルロゴ「狩人行動」 (logogen.py 生成, 16x16/文字, 色2=赤) ----
-; tile $C0: 「狩」TL
+; ---- ボス決意マン (32x32 = 4x4 タイル $C0-$CF, bossgen.py 生成) ----
+; tile (boss) 0,0
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $CC,$CC,$33,$33,$F3,$F3,$30,$30
-; tile $C1: 「狩」TR
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $C0,$C0,$FC,$FC,$0C,$0C,$30,$30
-; tile $C2: 「狩」BL
+; tile $D1: boss 0,1
+    .byte $00,$00,$00,$00,$00,$00,$0F,$0F
+    .byte $03,$03,$0F,$0F,$3F,$3F,$FF,$FF
+; tile $D2: boss 0,2
+    .byte $00,$00,$00,$00,$00,$00,$F0,$F0
+    .byte $C0,$C0,$F0,$F0,$FC,$FC,$FF,$FF
+; tile $D3: boss 0,3
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $FF,$FF,$33,$33,$C0,$C0,$00,$00
-; tile $C3: 「狩」BR
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $FC,$FC,$30,$30,$F0,$F0,$00,$00
-; tile $C4: 「人」TL
+; tile $D4: boss 1,0
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $03,$03,$03,$03,$03,$03,$0C,$0C
-; tile $C5: 「人」TR
+    .byte $03,$03,$0F,$0F,$3F,$3F,$FF,$FF
+; tile $D5: boss 1,1
+    .byte $3F,$3F,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $FF,$FF,$FF,$FF,$C3,$C3,$C3,$C3
+; tile $D6: boss 1,2
+    .byte $FC,$FC,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $FF,$FF,$FF,$FF,$C3,$C3,$C3,$C3
+; tile $D7: boss 1,3
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $00,$00,$00,$00,$00,$00,$C0,$C0
-; tile $C6: 「人」BL
+    .byte $C0,$C0,$F0,$F0,$FC,$FC,$FF,$FF
+; tile $D8: boss 2,0
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $0C,$0C,$30,$30,$C0,$C0,$00,$00
-; tile $C7: 「人」BR
+    .byte $FF,$FF,$FF,$FF,$3F,$3F,$0F,$0F
+; tile $D9: boss 2,1
+    .byte $FF,$FF,$FF,$FF,$3F,$3F,$00,$00
+    .byte $FF,$FF,$FC,$FC,$FF,$FF,$FF,$FF
+; tile $DA: boss 2,2
+    .byte $FF,$FF,$FF,$FF,$FC,$FC,$00,$00
+    .byte $FF,$FF,$3F,$3F,$FF,$FF,$FF,$FF
+; tile $DB: boss 2,3
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $C0,$C0,$30,$30,$0C,$0C,$00,$00
-; tile $C8: 「行」TL
+    .byte $FF,$FF,$FF,$FF,$FC,$FC,$F0,$F0
+; tile $DC: boss 3,0
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $33,$33,$C0,$C0,$3F,$3F,$F0,$F0
-; tile $C9: 「行」TR
+    .byte $03,$03,$00,$00,$00,$00,$00,$00
+; tile $DD: boss 3,1
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $F0,$F0,$00,$00,$FC,$FC,$30,$30
-; tile $CA: 「行」BL
+    .byte $FF,$FF,$FF,$FF,$0F,$0F,$03,$03
+; tile $DE: boss 3,2
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $30,$30,$30,$30,$30,$30,$00,$00
-; tile $CB: 「行」BR
+    .byte $FF,$FF,$FF,$FF,$F0,$F0,$C0,$C0
+; tile $DF: boss 3,3
     .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $30,$30,$30,$30,$F0,$F0,$00,$00
-; tile $CC: 「動」TL
-    .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $FC,$FC,$33,$33,$FC,$FC,$FC,$FC
-; tile $CD: 「動」TR
-    .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $C0,$C0,$FC,$FC,$CC,$CC,$CC,$CC
-; tile $CE: 「動」BL
-    .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $FC,$FC,$30,$30,$FF,$FF,$00,$00
-; tile $CF: 「動」BR
-    .byte $00,$00,$00,$00,$00,$00,$00,$00
-    .byte $CC,$CC,$CC,$CC,$3C,$3C,$00,$00
+    .byte $C0,$C0,$00,$00,$00,$00,$00,$00

@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/19-image-title.nes)** (最新版: roms/19-image-title.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/20-boss-ending.nes)** (最新版: roms/20-boss-ending.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -13,6 +13,8 @@
 ![タイトル画面](docs/title_screen.png)
 
 ![スクリーンショット: ジャンプ中のカリュード](docs/screenshot.png)
+
+![ボス戦](docs/boss_fight.png)
 
 ## ストーリー
 
@@ -79,7 +81,9 @@ make clean
 - **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
 - **クリアと残機**: 一番右 (x=1008) 到達で STAGE CLEAR! → 次のステージ。残機3機、死ぬと X 目で点滅する死亡演出 → リスポーン。0機で GAMEOVER → タイトルへ。穴 (フィーチャ5) に落ちても死ぬ
 - **タイトル画面**: ドット絵イラストをフルスクリーン表示。**CNROM (マッパー3) で CHR を 16KB に拡張**し、タイトル専用バンクに512タイルを格納。**スプライト0ヒットで画面を上下スプリット**し、パターンテーブルを PT0→PT1 に切り替えて 256 タイル制限を突破。変換は自作コンバータ (12色量子化 → 4パレットのロイド式最適化 → 文字保護つきタイルマージ)。メニュー (START/CONTINUE/OPTION) はカーソルスプライトで選択、CONTINUE は前回のステージから
-- **ミス時の演出**: BGM が止まり、ミスのジングルだけが鳴る
+- **ミス時の演出**: BGM が止まり、ミスのジングルだけが鳴る。タイトル BGM はフェードイン (音量キャップ 0→15、ベースは中盤・ドラムは後半から入る段階的エントリー)
+- **ボス決意マン**: 1-4 の最深部 (柱の門の先のアリーナ) に鎮座する 32x32 の大決意マン。HP8、プレイヤーへ跳びかかる。矢=1 / 踏みつけ=2 ダメージ (被弾後20Fの無敵フラッシュ)。生存中はクリア不可。撃破 2000点
+- **エンディング**: 1-4 クリア (=ボス撃破後) で CONGRATULATIONS! 画面へ。START でタイトルに戻る。タイトルメニューの CONTINUE は前回のステージから再開
 - **スコア**: 矢100 / 踏みつけ200 / アイテム500 / クリア1000点。HUD 中央上に6桁表示、GAME OVER でリセット (周回では持ち越し)
 - **フォント**: ASCII $20-$5F の64文字 (A-Z 0-9 記号) を CGROM タイル $80-$BF に収録 (タイル = $80 + ASCII - $20)。GAMEOVER 表示や HUD の数字に使用
 - **サウンド**: TR-808 風の自作音源ドライバ ([試聴: docs/bgm_sample.wav](docs/bgm_sample.wav))。キック/スネアは Python で合成した波形を DPCM (1bit デルタ変調) にして ROM の $C000 に格納し DMC で再生。ハイハットはノイズ+ソフトウェアエンベロープ。**2曲構成**: タイトル曲 = Am→F→C→G のコード進行 + **SQ2 デチューンユニゾン (DQ2 風の広がり, [試聴](docs/bgm_title.wav))** / ゲーム曲 = Am グルーヴ + 2ステップ遅れの SQ2 エコー。ベースは三角波の **TB-303 風** — ノート間を 64/F でスライドするポルタメントと、鳴り始めだけ深い (±6→±2) ビブラートでレゾナンスのうねりを再現
@@ -95,6 +99,7 @@ make clean
 - [x] **Step 4.5**: アイテム・ステージクリア・残機3機とゲームオーバー・穴 (落ちると死ぬ)
 - [x] **Step 5**: サウンド — TR-808 風音源ドライバ + SFX 6種 + コード進行 BGM
 - [x] **Step 6**: ステージ 1-1〜1-4、STAGE CLEAR!、タイトル画面 — **ロードマップ完走!**
+- [x] **Step 7**: ボス決意マン (1-4) とエンディング、スコア、イラストタイトル画面
 
 ## 開発日誌
 
