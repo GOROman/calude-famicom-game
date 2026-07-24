@@ -11,10 +11,11 @@
   header { background:var(--red); padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   header h1 { font-size:18px; margin:0; }
   header .sub { font-size:12px; opacity:.8; }
-  #toolbar { display:flex; gap:8px; padding:10px 16px; flex-wrap:wrap; align-items:center; }
-  .tool { border:2px solid #555; background:#2a2a2a; color:var(--cream); padding:8px 12px;
+  #toolbar, #stagebar { display:flex; gap:8px; padding:10px 16px 0; flex-wrap:wrap; align-items:center; }
+  #toolbar { padding-bottom:10px; }
+  .tool, .stage { border:2px solid #555; background:#2a2a2a; color:var(--cream); padding:8px 12px;
           border-radius:6px; cursor:pointer; font-size:13px; }
-  .tool.sel { border-color:#ffd700; background:#3a3220; }
+  .tool.sel, .stage.sel { border-color:#ffd700; background:#3a3220; }
   .btn { background:var(--red); border:none; color:var(--cream); padding:8px 14px; border-radius:6px;
          cursor:pointer; font-size:13px; font-weight:bold; box-shadow:0 2px 0 #5d0f0f; }
   .btn:active { transform:translateY(2px); box-shadow:none; }
@@ -27,8 +28,18 @@
 <body>
 <header>
   <h1>狩人行動 ステージエディタ</h1>
-  <span class="sub">クリック/ドラッグで配置 — URLがそのままセーブデータ</span>
+  <span class="sub">1-1〜1-4 を編集 — URLがそのままセーブデータ</span>
 </header>
+<div id="stagebar">
+  <button class="stage sel" data-s="0">1-1</button>
+  <button class="stage" data-s="1">1-2</button>
+  <button class="stage" data-s="2">1-3</button>
+  <button class="stage" data-s="3">1-4</button>
+  <span style="flex:1"></span>
+  <button class="btn" id="copy">🔗 URLをコピー</button>
+  <button class="btn" id="rom">💾 .nes を書き出す</button>
+  <button class="btn" id="clear">🗑 このステージを全消去</button>
+</div>
 <div id="toolbar">
   <button class="tool" data-f="0">🟦 平地</button>
   <button class="tool sel" data-f="1">🧱 ブロック</button>
@@ -36,10 +47,6 @@
   <button class="tool" data-f="3">☁️ 浮き (低)</button>
   <button class="tool" data-f="4">☁️ 浮き (高)</button>
   <button class="tool" data-f="5">🕳 穴</button>
-  <span style="flex:1"></span>
-  <button class="btn" id="copy">🔗 URLをコピー</button>
-  <button class="btn" id="rom">💾 .nes を書き出す</button>
-  <button class="btn" id="clear">🗑 全消去</button>
 </div>
 <div id="wrap"><canvas id="cv" width="1024" height="240" style="width:1536px;height:360px"></canvas></div>
 <div id="status"></div>
@@ -49,62 +56,78 @@
 </div>
 <script>
 'use strict';
-const COLS = 64, CELL = 16;
+const COLS = 64, CELL = 16, STAGES = 4;
 const cv = document.getElementById('cv'), cx = cv.getContext('2d');
 const statusEl = document.querySelector('#status');
-let map = new Uint8Array(COLS);
-let brush = 1;
+let maps = new Uint8Array(COLS * STAGES);   // 4面ぶん
+let defaults = null;                        // base.nes から読んだ標準ステージ
+let romBuf = null, romOff = -1;
+let st = 0, brush = 1;
 
-// ---- URL <-> マップ (64桁の 0-4 文字列を #ハッシュに) ----
-// ゲーム標準ステージ (src/level.s の level_map と同じ)
-const DEFAULT_MAP = '0000000033000101440034305520200034430550112200330122103305502200';
+// ---- base.nes から標準の4ステージを読む ----
+async function loadBase() {
+  try {
+    romBuf = new Uint8Array(await (await fetch('base.nes')).arrayBuffer());
+    const magic = [...'LVLMAP01'].map(c => c.charCodeAt(0));
+    outer: for (let i = 0; i < romBuf.length - 8; i++) {
+      for (let j = 0; j < 8; j++) if (romBuf[i+j] !== magic[j]) continue outer;
+      romOff = i + 8; break;
+    }
+    if (romOff < 0) throw new Error('マーカーなし');
+    defaults = romBuf.slice(romOff, romOff + COLS * STAGES);
+  } catch (e) {
+    defaults = new Uint8Array(COLS * STAGES);
+    statusEl.textContent = 'base.nes を読めませんでした: ' + e;
+  }
+}
+
+// ---- URL <-> 4面のマップ (最大256桁の 0-5 文字列) ----
 function loadHash() {
+  maps.set(defaults);
   const h = location.hash.replace('#', '');
-  if (/^[0-5]{1,64}$/.test(h)) for (let i = 0; i < h.length; i++) map[i] = +h[i];
-  else for (let i = 0; i < COLS; i++) map[i] = +DEFAULT_MAP[i] || 0;
+  if (/^[0-5]{1,256}$/.test(h)) for (let i = 0; i < h.length; i++) maps[i] = +h[i];
 }
 function saveHash() {
-  const s = Array.from(map).join('');
-  history.replaceState(null, '', s === '0'.repeat(COLS) ? location.pathname : '#' + s);
-  statusEl.textContent = 'セーブデータ: ' + (location.hash || '(空)');
+  const s = Array.from(maps).join('');
+  const d = Array.from(defaults).join('');
+  history.replaceState(null, '', s === d ? location.pathname : '#' + s);
+  statusEl.textContent = `1-${st+1} を編集中 | セーブデータ: ` + (location.hash ? location.hash.slice(0,80) + '…' : '(標準ステージ)');
 }
 
 // ---- 描画 (ゲームと同じ配色) ----
-const SKY = '#64b0ff', GRASS = '#88d800', GRASS_D = '#0b4800', DIRT = '#99500b', DARK = '#0b4800';
-function drawBlock(x, y) {  // 16x16 ブロック (輪郭+ハイライト)
+const SKY='#64b0ff', GRASS='#88d800', GRASS_D='#0b4800', DIRT='#99500b', DARK='#0b4800';
+const map = () => maps.subarray(st*COLS, st*COLS+COLS);
+function drawBlock(x, y) {
   cx.fillStyle = DIRT; cx.fillRect(x, y, 16, 16);
-  cx.fillStyle = DARK; cx.fillRect(x, y, 16, 1); cx.fillRect(x, y + 15, 16, 1);
-  cx.fillRect(x, y, 1, 16); cx.fillRect(x + 15, y, 1, 16);
-  cx.fillRect(x + 10, y + 1, 1, 3); cx.fillRect(x + 1, y + 4, 14, 1);
-  cx.fillRect(x + 4, y + 5, 1, 3); cx.fillRect(x + 1, y + 8, 14, 1);
-  cx.fillStyle = GRASS; cx.fillRect(x + 1, y + 1, 2, 1); cx.fillRect(x + 1, y + 2, 1, 1);
+  cx.fillStyle = DARK; cx.fillRect(x, y, 16, 1); cx.fillRect(x, y+15, 16, 1);
+  cx.fillRect(x, y, 1, 16); cx.fillRect(x+15, y, 1, 16);
+  cx.fillRect(x+10, y+1, 1, 3); cx.fillRect(x+1, y+4, 14, 1);
+  cx.fillRect(x+4, y+5, 1, 3); cx.fillRect(x+1, y+8, 14, 1);
+  cx.fillStyle = GRASS; cx.fillRect(x+1, y+1, 2, 1); cx.fillRect(x+1, y+2, 1, 1);
 }
 function draw() {
+  const m = map();
   cx.fillStyle = SKY; cx.fillRect(0, 0, 1024, 240);
-  // 地面 (y=200-239, 穴の列は描かない)
   for (let c = 0; c < COLS; c++) {
-    if (map[c] === 5) continue;
+    if (m[c] === 5) continue;
     const x = c * CELL;
     cx.fillStyle = GRASS; cx.fillRect(x, 200, CELL, 3);
     cx.fillStyle = GRASS_D; cx.fillRect(x, 203, CELL, 2);
     cx.fillStyle = DIRT; cx.fillRect(x, 205, CELL, 35);
   }
   cx.fillStyle = DARK;
-  for (let i = 0; i < 400; i++) { const gx = (i * 37) % 1024; if (map[(gx / CELL) | 0] !== 5) cx.fillRect(gx, 208 + (i * 13) % 30, 1, 1); }
-  // フィーチャ
+  for (let i = 0; i < 400; i++) { const gx = (i*37)%1024; if (m[(gx/CELL)|0] !== 5) cx.fillRect(gx, 208+(i*13)%30, 1, 1); }
   for (let c = 0; c < COLS; c++) {
-    const x = c * CELL, f = map[c];
+    const x = c*CELL, f = m[c];
     if (f === 1) drawBlock(x, 184);
     else if (f === 2) { drawBlock(x, 168); drawBlock(x, 184); }
     else if (f === 3) drawBlock(x, 144);
     else if (f === 4) drawBlock(x, 120);
   }
-  // スタート位置の狩人 (ざっくり)
   cx.fillStyle = '#00930c'; cx.fillRect(120, 186, 12, 12);
   cx.fillStyle = '#229eea'; cx.fillRect(122, 189, 8, 4);
-  // グリッド
   cx.fillStyle = 'rgba(0,0,0,.12)';
-  for (let c = 1; c < COLS; c++) cx.fillRect(c * CELL, 0, 1, 240);
+  for (let c = 1; c < COLS; c++) cx.fillRect(c*CELL, 0, 1, 240);
   saveHash();
 }
 
@@ -114,46 +137,45 @@ document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () =
   b.classList.add('sel');
   brush = +b.dataset.f;
 }));
+document.querySelectorAll('.stage').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.stage').forEach(x => x.classList.remove('sel'));
+  b.classList.add('sel');
+  st = +b.dataset.s;
+  draw();
+}));
 let painting = false;
 function paint(e) {
   const r = cv.getBoundingClientRect();
   const c = Math.floor((e.clientX - r.left) / r.width * COLS);
-  if (c >= 0 && c < COLS && map[c] !== brush) { map[c] = brush; draw(); }
+  if (c >= 0 && c < COLS && maps[st*COLS+c] !== brush) { maps[st*COLS+c] = brush; draw(); }
 }
 cv.addEventListener('pointerdown', e => { painting = true; cv.setPointerCapture(e.pointerId); paint(e); });
 cv.addEventListener('pointermove', e => painting && paint(e));
 cv.addEventListener('pointerup', () => painting = false);
 
-document.getElementById('clear').addEventListener('click', () => { map.fill(0); draw(); });
+document.getElementById('clear').addEventListener('click', () => { map().fill(0); draw(); });
 document.getElementById('copy').addEventListener('click', async () => {
   await navigator.clipboard.writeText(location.href);
-  statusEl.textContent = 'URL をコピーしました! このURLを開けば続きから編集できます';
+  statusEl.textContent = 'URL をコピーしました! このURLを開けば4面ぶん続きから編集できます';
 });
 
-// ---- ROM 書き出し: base.nes の "LVLMAP01" マーカー直後 64 バイトを差し替え ----
-document.getElementById('rom').addEventListener('click', async () => {
+// ---- ROM 書き出し: LVLMAP01 直後の 256 バイト (4面) を差し替え ----
+document.getElementById('rom').addEventListener('click', () => {
   try {
-    const buf = new Uint8Array(await (await fetch('base.nes')).arrayBuffer());
-    const magic = [...'LVLMAP01'].map(ch => ch.charCodeAt(0));
-    let off = -1;
-    outer: for (let i = 0; i < buf.length - 8; i++) {
-      for (let j = 0; j < 8; j++) if (buf[i + j] !== magic[j]) continue outer;
-      off = i + 8; break;
-    }
-    if (off < 0) throw new Error('LVLMAP01 マーカーが見つかりません');
-    buf.set(map, off);
+    if (!romBuf || romOff < 0) throw new Error('base.nes 未読込');
+    const buf = romBuf.slice();
+    buf.set(maps, romOff);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([buf], { type: 'application/octet-stream' }));
     a.download = 'calude-stage.nes';
     a.click();
-    statusEl.textContent = 'calude-stage.nes を書き出しました (level_map @ 0x' + off.toString(16) + ')';
+    statusEl.textContent = `calude-stage.nes を書き出しました (4面, level_maps @ 0x${romOff.toString(16)})`;
   } catch (err) {
     statusEl.textContent = 'ROM 書き出し失敗: ' + err;
   }
 });
 
-loadHash();
-draw();
+(async () => { await loadBase(); loadHash(); draw(); })();
 </script>
 </body>
 </html>

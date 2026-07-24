@@ -6,6 +6,7 @@ STATE_TIME_DEATH = 60
 STATE_TIME_OVER  = 240
 TEXT_OAM = 84           ; スプライト 21-32 (最大12文字)
 HUD_OAM  = 132          ; スプライト 33-37 (残機 + ステージ番号)
+SCORE_OAM = 152         ; スプライト 38-43 (スコア6桁)
 NUM_STAGES = 4
 
 .segment "CODE"
@@ -202,7 +203,38 @@ check_clear:
     lda #0              ; ファンファーレを頭から
     sta snd_tick
     sta snd_step
+    lda #10             ; クリアボーナス 1000点
+    jsr add_score
 @no:
+    rts
+
+; ---- スコア加算: A = 100点単位の加算量 (0-99) ----
+add_score:
+    clc
+    adc score+3
+    sta score+3
+    ldx #3
+@norm:
+    lda score,x
+    cmp #10
+    bcc @next
+    sec
+    sbc #10
+    sta score,x
+    cpx #0
+    beq @cap            ; 最上位から桁あふれ → カンスト
+    inc score-1,x       ; 上の桁へ繰り上げ
+    jmp @norm
+@next:
+    dex
+    bpl @norm
+    rts
+@cap:
+    lda #9              ; 999900 でカンスト
+    sta score
+    sta score+1
+    sta score+2
+    sta score+3
     rts
 
 ; ---- 死亡演出の開始 (敵接触・穴落下から呼ばれる) ----
@@ -293,6 +325,45 @@ draw_hud:
     sta OAM_BUF+HUD_OAM+15
     lda #232
     sta OAM_BUF+HUD_OAM+19
+    ; スコア (中央上 y=24, 4桁 + "00" = 6スプライト)
+    ldx #0
+    ldy #0
+@score_loop:
+    lda #24
+    sta OAM_BUF+SCORE_OAM,y
+    iny
+    lda score,x
+    clc
+    adc #$90            ; '0' のタイル
+    sta OAM_BUF+SCORE_OAM,y
+    iny
+    lda #0
+    sta OAM_BUF+SCORE_OAM,y
+    iny
+    txa
+    asl
+    asl
+    asl
+    clc
+    adc #96             ; X = 96 + 桁*8
+    sta OAM_BUF+SCORE_OAM,y
+    iny
+    inx
+    cpx #4
+    bne @score_loop
+    lda #24             ; 固定の下2桁 "00"
+    sta OAM_BUF+SCORE_OAM+16
+    sta OAM_BUF+SCORE_OAM+20
+    lda #$90
+    sta OAM_BUF+SCORE_OAM+17
+    sta OAM_BUF+SCORE_OAM+21
+    lda #0
+    sta OAM_BUF+SCORE_OAM+18
+    sta OAM_BUF+SCORE_OAM+22
+    lda #128
+    sta OAM_BUF+SCORE_OAM+19
+    lda #136
+    sta OAM_BUF+SCORE_OAM+23
 
     ; 状態テキスト
     lda game_state

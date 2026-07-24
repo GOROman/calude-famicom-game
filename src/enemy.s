@@ -148,6 +148,8 @@ update_enemies:
     sta arrow_flag,y
 :   lda #188
     jsr kill_enemy
+    lda #1              ; 矢で撃破 = 100点
+    jsr add_score
     jmp @col_next
 @arrow_next:
     iny
@@ -184,6 +186,8 @@ update_enemies:
     bcs @player_die     ; 深くめり込んでいる → やられ
     lda #180            ; 踏みつけ! 決意マンは行動に倒れた
     jsr kill_enemy
+    lda #2              ; 踏みつけ = 200点
+    jsr add_score
     lda #0
     sta vel_y_lo
     lda #$FD            ; プレイヤーは -3.0 でバウンド

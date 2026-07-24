@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど)** が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/17-title.nes)** (最新版: roms/17-title.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/18-score-2songs.nes)** (最新版: roms/18-score-2songs.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -77,8 +77,9 @@ make clean
 - **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
 - **クリアと残機**: 一番右 (x=1008) 到達で STAGE CLEAR! → 次のステージ。残機3機、死ぬと X 目で点滅する死亡演出 → リスポーン。0機で GAMEOVER → タイトルへ。穴 (フィーチャ5) に落ちても死ぬ
 - **タイトル画面**: 美咲フォント2倍拡大の「狩人行動」ロゴ (BG)、点滅する PUSH START (スプライト)。START でゲーム開始。BGM はタイトルから鳴っている
+- **スコア**: 矢100 / 踏みつけ200 / アイテム500 / クリア1000点。HUD 中央上に6桁表示、GAME OVER でリセット (周回では持ち越し)
 - **フォント**: ASCII $20-$5F の64文字 (A-Z 0-9 記号) を CGROM タイル $80-$BF に収録 (タイル = $80 + ASCII - $20)。GAMEOVER 表示や HUD の数字に使用
-- **サウンド**: TR-808 風の自作音源ドライバ ([試聴: docs/bgm_sample.wav](docs/bgm_sample.wav))。キック/スネアは Python で合成した波形を DPCM (1bit デルタ変調) にして ROM の $C000 に格納し DMC で再生。ハイハットはノイズ+ソフトウェアエンベロープ。**BGM は Am→F→C→G のコード進行** (4小節64ステップ、メロディ+2ステップ遅れの SQ2 エコー)。ベースは三角波の **TB-303 風** — ノート間を 64/F でスライドするポルタメントと、鳴り始めだけ深い (±6→±2) ビブラートでレゾナンスのうねりを再現
+- **サウンド**: TR-808 風の自作音源ドライバ ([試聴: docs/bgm_sample.wav](docs/bgm_sample.wav))。キック/スネアは Python で合成した波形を DPCM (1bit デルタ変調) にして ROM の $C000 に格納し DMC で再生。ハイハットはノイズ+ソフトウェアエンベロープ。**2曲構成**: タイトル曲 = Am→F→C→G のコード進行 + **SQ2 デチューンユニゾン (DQ2 風の広がり, [試聴](docs/bgm_title.wav))** / ゲーム曲 = Am グルーヴ + 2ステップ遅れの SQ2 エコー。ベースは三角波の **TB-303 風** — ノート間を 64/F でスライドするポルタメントと、鳴り始めだけ深い (±6→±2) ビブラートでレゾナンスのうねりを再現
 - **SFX**: ジャンプ (上昇スイープ)・ショット (下降ザップ)・ミス (下降3音)・敵ヒット (ノイズバースト)・撃破 (上昇アルペジオ)・クリアファンファーレ。BGM のレジスタに毎フレーム上書きするオーバーレイ方式
 - **ステージ**: 1-1〜1-4 の4面 (クリアで次へ、1-4 の次は周回)。HUD 右上にステージ番号。死亡リスポーンはステージ再構築 (ネームテーブル再描画) — 背景と判定のズレを防ぐ
 

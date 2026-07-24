@@ -89,6 +89,7 @@ current_stage: .res 1   ; 0-3 = ステージ 1-1〜1-4
 level_ptr:    .res 2    ; 現在ステージの level_map ポインタ
 probe_res:    .res 1    ; probe_two の中間結果
 text_ptr:     .res 2    ; 状態テキストのテーブルポインタ
+score:        .res 4    ; スコア (100点単位の10進4桁, index0=最上位)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)

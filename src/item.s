@@ -93,6 +93,8 @@ update_items:
 @took:
     lda #0
     sta item_flag,x
+    lda #5              ; アイテム取得 = 500点
+    jsr add_score
 @next:
     dex
     bpl @loop

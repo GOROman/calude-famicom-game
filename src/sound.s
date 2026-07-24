@@ -99,7 +99,7 @@ update_sound:
     asl
     asl
     ora snd_step
-    tay                 ; Y = 曲内位置 (0-63)
+    sta tmp             ; tmp = 曲内位置 (0-63)
     ldx snd_step
     lda drum_pat,x
     tax                 ; X = ドラムビット
@@ -130,7 +130,8 @@ update_sound:
     sta hat_decay
     jsr trig_hat
 :   ; ---- ベース (303 風: ターゲットをセットしてスライドで向かう) ----
-    lda bass_pat,y
+    ldy tmp
+    jsr get_bass        ; 曲別 (タイトル=コード進行 / ゲーム=Am グルーヴ)
     beq @bass_off
     tax
     lda #0
@@ -153,8 +154,9 @@ update_sound:
     lda #$80            ; 消音 (cur は保持 → 次ノートへスライド)
     sta TRI_LIN
 @melody:
-    ; ---- メロディ (SQ1): コードトーンを小節ごとに移動 ----
-    lda melody_pat,y
+    ; ---- メロディ (SQ1) ----
+    ldy tmp
+    jsr get_mel
     beq @mel_rest
     tax
     lda #9              ; アタック音量 (9→6 へソフトエンベロープ)
@@ -169,13 +171,31 @@ update_sound:
     lda #0
     sta mel_vol
 @echo:
-    ; ---- エコー (SQ2): 2ステップ (16F) 遅れ・音量3 ----
-    tya
+    ; ---- SQ2: タイトル=デチューンユニゾン (DQ2風の広がり) / ゲーム=2ステップ遅れエコー ----
+    lda game_state
+    cmp #4
+    bne @echo_mode
+    ldy tmp             ; デチューン: 同じノートを周期+1 でずらして重ねる
+    jsr get_mel
+    beq @echo_rest
+    tax
+    lda pulse_lo_tbl,x
+    clc
+    adc #1              ; +1 で数セントのズレ → コーラスのうねり
+    sta $4006
+    lda pulse_hi_tbl,x
+    adc #0
+    ora #%11111000
+    sta $4007
+    lda #%10110110      ; デューティ50% 音量6 (厚いユニゾン)
+    sta SQ2_VOL
+    jmp @no_step
+@echo_mode:
+    lda tmp
     sec
     sbc #2
-    and #63
-    tax
-    lda melody_pat,x
+    tay
+    jsr get_mel
     beq @echo_rest
     tax
     lda pulse_lo_tbl,x
@@ -235,6 +255,39 @@ update_sound:
     jsr bass_update
     ; ---- SFX オーバーレイ (BGM の上から上書き) ----
     jmp sfx_overlay
+
+; ---- 曲別のパターン参照 (タイトル=64ステップのコード進行, ゲーム=Am グルーヴ) ----
+get_bass:               ; Y = 曲内位置 → A = ベースノート
+    lda game_state
+    cmp #4
+    bne @game
+    tya
+    and #63
+    tay
+    lda bass_pat_title,y
+    rts
+@game:
+    tya
+    and #15             ; ゲーム曲のベースは16ステップループ
+    tay
+    lda bass_pat_game,y
+    rts
+
+get_mel:                ; Y = 曲内位置 → A = メロディノート
+    lda game_state
+    cmp #4
+    bne @game
+    tya
+    and #63
+    tay
+    lda melody_title,y
+    rts
+@game:
+    tya
+    and #31             ; ゲーム曲のメロディは32ステップループ
+    tay
+    lda melody_game,y
+    rts
 
 ; ---- ベースのポルタメントとビブラート書き込み ----
 bass_update:
@@ -449,6 +502,8 @@ fanfare_update:
     tax
     lda pulse_lo_tbl,x
     sta $4002
+    clc
+    adc #1              ; ファンファーレもデチューンで厚く
     sta $4006
     lda pulse_hi_tbl,x
     ora #%11111000
@@ -456,7 +511,7 @@ fanfare_update:
     sta $4007
     lda #%10111100      ; SQ1 vol 12
     sta SQ1_VOL
-    lda #%01110100      ; SQ2 デューティ25% vol 4
+    lda #%10110110      ; SQ2 デューティ50% vol 6 (ユニゾン)
     sta SQ2_VOL
     jmp @adv
 @rest:
@@ -512,19 +567,25 @@ trig_hat:
 drum_pat:
     .byte $05,$04,$08,$04, $07,$04,$08,$04
     .byte $05,$04,$08,$04, $07,$04,$08,$04
-; ---- コード進行 Am → F → C → G (4小節 x 16ステップ) ----
+; ---- タイトル曲: コード進行 Am → F → C → G (4小節 x 16ステップ) ----
 ; ベース (0=休符 1=F1 2=G1 3=A1 4=C2 5=D2 6=E2 7=F2 8=G2 9=A2)
-bass_pat:
+bass_pat_title:
     .byte 3,0,9,3, 0,3,9,0, 3,3,0,9, 3,0,9,9   ; Am
     .byte 1,0,7,1, 0,1,7,0, 1,1,0,7, 1,0,7,7   ; F
     .byte 4,0,8,4, 0,4,8,0, 4,4,0,8, 4,0,8,8   ; C
     .byte 2,0,8,2, 0,2,8,0, 2,2,0,8, 2,0,8,4   ; G
 ; メロディ (0=休符 1=F3 2=G3 3=A3 4=C4 5=D4 6=E4 7=F4 8=G4 9=A4 10=C5 11=E5 12=G5)
-melody_pat:
+melody_title:
     .byte 3,0,3,4, 6,0,6,5, 4,5,6,0, 8,0,6,5   ; Am
     .byte 1,0,1,4, 7,0,7,6, 4,0,1,4, 7,0,6,4   ; F
     .byte 4,0,4,6, 8,0,8,10, 10,0,8,6, 4,6,8,0 ; C
     .byte 2,0,2,5, 8,0,8,11, 8,0,5,2, 6,5,4,5  ; G
+; ---- ゲーム曲 (1-1〜): 元の Am グルーヴ (ベース16 / メロディ32 ステップ) ----
+bass_pat_game:
+    .byte 3,0,3,0, 3,0,5,4, 3,0,3,0, 6,5,4,0
+melody_game:
+    .byte 3,0,3,4, 6,0,6,5, 4,5,6,0, 8,0,6,5
+    .byte 3,0,3,4, 6,0,8,9, 10,0,9,8, 6,5,4,5
 ; ファンファーレ: C4 E4 G4 C5 . G4 C5 C5
 fanfare_pat:
     .byte 4,6,8,10, 0,8,10,10, 0,0,0,0
