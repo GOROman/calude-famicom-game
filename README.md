@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど) の少女**が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/45-player-handpolish.nes)** (最新版: roms/45-player-handpolish.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/46-round-title-face.nes)** (最新版: roms/46-round-title-face.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -131,6 +131,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [決意の門 (ボスとエンディング)](docs/diary/boss.md)
 - [番外編: ドットを打つ道具を、ドットのゲームに添える (CHR-ROMエディタ)](docs/diary/chredit.md)
 - [番外編: 設定画の彼女が、16ドットに宿る (主人公打ち直し)](docs/diary/redraw.md)
+- [番外編: ラウンド画面に、あの顔を (バンク切替スプリット)](docs/diary/round-face.md)
 
 ## License
 

@@ -84,80 +84,65 @@ start_stage:
     sta PPUMASK
     rts
 
-; ---- ラウンド画面の BG: 全面ブランク + 顔 (4x3) + セリフ ----
+; ---- ラウンド画面の BG ----
+; 上半分 (バンク0/PT1): セリフ + 区切り線。下半分 (バンク1/PT0, NMI で切替):
+; タイトル画像の顔 (タイトル NT 行4-16, 列20-31 をそのままコピー)
+; タイル $00 は両バンクで空/黒なので切替スキャンラインが見えない
 draw_round_bg:
     bit PPUSTATUS
-    lda #$20            ; NT を空白タイル ($80 = フォントの空白) で埋める
+    lda #$20            ; NT + 属性 1024B を $00 でクリア
     sta PPUADDR
     lda #$00
     sta PPUADDR
     ldx #4
     ldy #0
-    lda #$80
+    lda #$00
 @fill:
     sta PPUDATA
     iny
     bne @fill
     dex
     bne @fill
-    ; 属性: 全体 0 → 顔とセリフ帯をパレット1 (肌/茶) に
+    ; BG パレット = タイトル画像パレット (テキストはパレット0 の色1 = $37)
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$00
+    sta PPUADDR
+    ldx #0
+:   lda title_img_palette,x
+    sta PPUDATA
+    inx
+    cpx #16
+    bne :-
+    bit PPUSTATUS       ; スプライトパレット1/2 = 目パチ用 (タイトルと同じ)
+    lda #$3F
+    sta PPUADDR
+    lda #$15
+    sta PPUADDR
+    ldx #0
+:   lda title_eye_pal,x
+    sta PPUDATA
+    inx
+    cpx #7
+    bne :-
+    ; 属性: 顔ウィンドウ (行16-28, 列20-31) にタイトルの属性をコピー
+    ldx #0
+@attr_copy:
+    ldy round_attr_ofs,x
     bit PPUSTATUS
     lda #$23
     sta PPUADDR
-    lda #$C0
-    sta PPUADDR
-    ldx #0
-    lda #0
-@attr0:
-    sta PPUDATA
-    inx
-    cpx #64
-    bne @attr0
-    bit PPUSTATUS
-    lda #$23
-    sta PPUADDR
-    lda #$C8            ; 行4-7 (顔 + 横のセリフ) をパレット1に
-    sta PPUADDR
-    ldx #0
-    lda #$55
-@attr1:
-    sta PPUDATA
-    inx
-    cpx #8
-    bne @attr1
-    ; 顔 4x3 (rows 4-6, cols 14-17)
-    ldx #0
-@face_rows:
-    bit PPUSTATUS
-    lda #$20
-    sta PPUADDR
-    txa
+    tya
     clc
-    adc #4              ; 行 4+r
-    asl
-    asl
-    asl
-    asl
-    asl                 ; *32
-    clc
-    adc #6              ; 顔は左寄せ (列6-9)
+    adc #$E5            ; $23C0 + 4*8 + 5 = $23E5
     sta PPUADDR
-    txa
-    asl
-    asl
-    tay                 ; r*4
-    lda round_face_ids,y
-    sta PPUDATA
-    lda round_face_ids+1,y
-    sta PPUDATA
-    lda round_face_ids+2,y
-    sta PPUDATA
-    lda round_face_ids+3,y
+    lda title_nt+973,y  ; 960 + 1*8 + 5
     sta PPUDATA
     inx
-    cpx #3
-    bne @face_rows
-    ; セリフ (顔の右横: 行5, 列12〜)
+    cpx #12
+    bne @attr_copy
+    ; セリフ (行7 と 行9, 列6)
     ldx current_stage
     lda round_dlg_lo,x
     sta text_ptr
@@ -166,18 +151,18 @@ draw_round_bg:
     bit PPUSTATUS
     lda #$20
     sta PPUADDR
-    lda #$AC            ; $2000 + 5*32 + 12
+    lda #$E6            ; $2000 + 7*32 + 6
     sta PPUADDR
     ldy #0
 @dlg:
     lda (text_ptr),y
     beq @dlg_done
-    cmp #$02            ; 改行 → 2行目 (行7, 列12)
+    cmp #$02            ; 改行 → 2行目 (行9, 列6)
     bne :+
     bit PPUSTATUS
-    lda #$20
+    lda #$21
     sta PPUADDR
-    lda #$EC            ; $2000 + 7*32 + 12
+    lda #$26            ; $2000 + 9*32 + 6
     sta PPUADDR
     jmp @dlg_next
 :   cmp #$01
@@ -188,6 +173,114 @@ draw_round_bg:
     iny
     bne @dlg
 @dlg_done:
+    ; 区切り線 (行13): '-' を32枚。スプライト0 のヒット面も兼ねる
+    bit PPUSTATUS
+    lda #$21
+    sta PPUADDR
+    lda #$A0            ; $2000 + 13*32
+    sta PPUADDR
+    ldx #0
+    lda #$8D            ; '-'
+@rule:
+    sta PPUDATA
+    inx
+    cpx #32
+    bne @rule
+    ; 顔ウィンドウ: タイトル NT 行4-16 の列20-31 → 画面行16-28
+    lda #<(title_nt+148) ; 4*32 + 20
+    sta text_ptr
+    lda #>(title_nt+148)
+    sta text_ptr+1
+    lda #$14             ; 転送先 $2214 = $2000 + 16*32 + 20
+    sta tmp
+    lda #$22
+    sta tmp2
+    ldx #13              ; 13行
+@win_row:
+    bit PPUSTATUS
+    lda tmp2
+    sta PPUADDR
+    lda tmp
+    sta PPUADDR
+    ldy #0
+@win_col:
+    lda (text_ptr),y
+    sta PPUDATA
+    iny
+    cpy #12
+    bne @win_col
+    lda text_ptr         ; ソース/転送先とも次の行 (+32)
+    clc
+    adc #32
+    sta text_ptr
+    bcc :+
+    inc text_ptr+1
+:   lda tmp
+    clc
+    adc #32
+    sta tmp
+    bcc :+
+    inc tmp2
+:   dex
+    bne @win_row
+    rts
+
+; ---- ラウンド画面の目パチ: タイトルの目スプライトを Y+96 で流用 ----
+ROUND_EYE_OAM = 160     ; スプライト 40-48 (state 6 では HUD/スコアは描かれない)
+ROUND_EYE_DY  = 96      ; タイトル行4 → 画面行16 のオフセット
+
+round_eyes_open:
+    jsr round_eyes_hide
+    ldx #0
+:   lda title_eye_open,x
+    clc
+    adc #ROUND_EYE_DY
+    sta OAM_BUF+ROUND_EYE_OAM,x
+    lda title_eye_open+1,x
+    sta OAM_BUF+ROUND_EYE_OAM+1,x
+    lda title_eye_open+2,x
+    sta OAM_BUF+ROUND_EYE_OAM+2,x
+    lda title_eye_open+3,x
+    sta OAM_BUF+ROUND_EYE_OAM+3,x
+    inx
+    inx
+    inx
+    inx
+    cpx #(TITLE_EYE_ON*4)
+    bne :-
+    rts
+
+round_eyes_closed:
+    jsr round_eyes_hide
+    ldx #0
+:   lda title_eye_spr,x
+    clc
+    adc #ROUND_EYE_DY
+    sta OAM_BUF+ROUND_EYE_OAM,x
+    lda title_eye_spr+1,x
+    sta OAM_BUF+ROUND_EYE_OAM+1,x
+    lda title_eye_spr+2,x
+    sta OAM_BUF+ROUND_EYE_OAM+2,x
+    lda title_eye_spr+3,x
+    sta OAM_BUF+ROUND_EYE_OAM+3,x
+    inx
+    inx
+    inx
+    inx
+    cpx #(TITLE_EYE_N*4)
+    bne :-
+    rts
+
+round_eyes_hide:
+    ldx #0
+    lda #$FF
+:   sta OAM_BUF+ROUND_EYE_OAM,x
+    inx
+    inx
+    inx
+    inx
+    cpx #(TITLE_EYE_ON*4)
+    bne :-
     rts
 
 ; ---- ラウンド表示のスプライトを OAM へ (state 6 の間は他に描画なし) ----
@@ -197,13 +290,22 @@ draw_round:
 :   sta OAM_BUF,x
     inx
     bne :-
+    ; スプライト0: 区切り線 (行13) に重ねてバンク切替のヒット検出
+    lda #103
+    sta OAM_BUF+0       ; Y (表示は 104〜)
+    lda #$8D            ; '-' (BG の区切り線と同じタイル → 見えない)
+    sta OAM_BUF+1
+    lda #%00100000      ; BG の後ろ
+    sta OAM_BUF+2
+    lda #8
+    sta OAM_BUF+3
     ldx #0              ; 文字インデックス
-    ldy #0              ; OAM オフセット
-@text:                  ; 1行目 "STAGE" (y=88, 5枚)
+    ldy #4              ; OAM オフセット (0 はスプライト0)
+@text:                  ; 1行目 "STAGE" (y=24, 5枚)
     lda round_text,x
     beq @line2
     sta OAM_BUF+1,y     ; タイル
-    lda #88
+    lda #24
     sta OAM_BUF,y       ; Y
     lda #0
     sta OAM_BUF+2,y     ; 属性
@@ -220,8 +322,8 @@ draw_round:
     iny
     inx
     bne @text           ; 常に分岐
-@line2:                 ; 2行目 "1-N" (y=104, 3枚, スキャンライン8枚制限を回避)
-    lda #104
+@line2:                 ; 2行目 "1-N" (y=40, 3枚, スキャンライン8枚制限を回避)
+    lda #40
     sta OAM_BUF,y
     sta OAM_BUF+4,y
     sta OAM_BUF+8,y
@@ -248,8 +350,8 @@ draw_round:
     adc #12
     tay
 @icon:
-    ; 顔アイコン x 残機 (y=118)
-    lda #118
+    ; 顔アイコン x 残機 (y=88)
+    lda #88
     sta OAM_BUF,y
     iny
     lda #$5F            ; 顔アイコンタイル
@@ -261,7 +363,7 @@ draw_round:
     lda #108
     sta OAM_BUF,y
     iny
-    lda #119
+    lda #89
     sta OAM_BUF,y
     iny
     lda #$B8            ; 'X'
@@ -273,7 +375,7 @@ draw_round:
     lda #120
     sta OAM_BUF,y
     iny
-    lda #119
+    lda #89
     sta OAM_BUF,y
     iny
     lda lives
@@ -286,7 +388,7 @@ draw_round:
     iny
     lda #132
     sta OAM_BUF,y
-    rts
+    jmp round_eyes_open ; 白目を出して rts
 
 ; ---- CNROM の CHR バンク切替 (バス競合回避のためテーブル自身へ書く) ----
 set_chr_bank:           ; A = バンク (0=ゲーム 1=タイトル)
@@ -775,29 +877,28 @@ player_die_start:
 ; ---- 演出の進行 ----
 update_state:
     inc frame_count     ; 点滅用 (プレイ中は update_enemies が回している)
-    lda game_state      ; ラウンド画面: 顔の目パチ
+    lda game_state      ; ラウンド画面: タイトルの目スプライトで目パチ
     cmp #6
     bne @no_iblink
     dec iblink_t
     bne @no_iblink
-    lda iblink_go       ; 直前の書き込みが開き目なら次は閉じ目
-    bne @no_iblink
-    lda frame_count
-    and #1
-    bne @ib_close
-    lda #1              ; 開く (次の目パチまで長め)
+    lda iblink_go       ; 0=開いている → 閉じる
+    bne @ib_open
+    lda #1
+    sta iblink_go
+    lda #12             ; 閉じ (12F)
+    sta iblink_t
+    jsr round_eyes_closed
+    jmp @no_iblink
+@ib_open:
+    lda #0              ; 開く (次の目パチまでランダム)
     sta iblink_go
     lda frame_count
     and #63
     clc
     adc #60
     sta iblink_t
-    bne @no_iblink
-@ib_close:
-    lda #2              ; 閉じる (12F)
-    sta iblink_go
-    lda #12
-    sta iblink_t
+    jsr round_eyes_open
 @no_iblink:
     lda game_state      ; クリア演出: 旗ポールをスルーッと滑り降りる
     cmp #1
@@ -858,6 +959,7 @@ update_state:
     sta PPUCTRL
     sta PPUMASK
     sta nmi_ready
+    jsr set_chr_bank    ; A=0: ゲーム用バンクへ戻す
     jsr ppu_init
     jsr level_init
     lda #0

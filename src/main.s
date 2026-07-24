@@ -303,32 +303,13 @@ nmi:
     sta PPUDATA
     sta coin_ppu_hi
 @no_coin_erase:
-    ; ---- ラウンド画面: 顔の目パチ (NT のセルを開き目/閉じ目に書き換え) ----
+    ; ---- ラウンド画面: 上半分はゲームバンクで描く (下半分は split で切替) ----
     lda game_state
     cmp #6
-    bne @no_iblink
-    lda iblink_go
-    beq @no_iblink
-    ldx #0
-@ib_loop:
-    bit PPUSTATUS
-    lda round_eye_ahi,x
-    sta PPUADDR
-    lda round_eye_alo,x
-    sta PPUADDR
-    lda iblink_go
-    cmp #2
-    beq :+
-    lda round_eye_open,x
-    jmp :++
-:   lda round_eye_closed,x
-:   sta PPUDATA
-    inx
-    cpx #ROUND_EYE_N
-    bne @ib_loop
+    bne @no_rbank
     lda #0
-    sta iblink_go
-@no_iblink:
+    jsr set_chr_bank
+@no_rbank:
     ; ---- 撃破フラッシュ: BG 色を1-2フレーム白く ----
     lda game_state
     cmp #4
@@ -366,8 +347,12 @@ nmi:
     sta PPUSCROLL
     sta nmi_ready
     ; ---- タイトル画面: スプライト0ヒットで PT0→PT1 に切替 (上下スプリット) ----
+    ; ---- ラウンド画面: スプライト0ヒットでタイトルバンクに切替 (下半分に顔) ----
     lda game_state
-    cmp #4
+    cmp #6
+    bne :+
+    jmp @round_split
+:   cmp #4
     bne @no_split
     ldy #200            ; フラグのクリア待ち (プリレンダライン)
 @wc1:
@@ -394,6 +379,40 @@ nmi:
     jmp @no_split
 @hit:
     lda #%10010000      ; 下半分は PT1
+    sta PPUCTRL
+    jmp @no_split
+@round_split:
+    ldy #200            ; フラグのクリア待ち (プリレンダライン)
+@rc1:
+    ldx #40
+@rc2:
+    bit PPUSTATUS
+    bvc @rcleared
+    dex
+    bne @rc2
+    dey
+    bne @rc1
+    jmp @no_split
+@rcleared:
+    ldy #250            ; ヒット待ち (区切り線 = y~107)
+@rh1:
+    ldx #80
+@rh2:
+    bit PPUSTATUS
+    bvs @rhit
+    dex
+    bne @rh2
+    dey
+    bne @rh1
+    jmp @no_split
+@rhit:
+    ldx #200            ; 約1000cyc (9ライン) 待ち → タイル$00 の空白帯で切替
+@rdly:
+    dex
+    bne @rdly
+    lda #1
+    jsr set_chr_bank    ; 下半分 = タイトルバンク (顔)
+    lda #%10000000      ; BG/スプライトとも PT0 (タイトルの上半分と同じ)
     sta PPUCTRL
 @no_split:
 @skip:

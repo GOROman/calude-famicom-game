@@ -22,3 +22,6 @@ round_eye_alo: .byte $A7,$A8,$A9,$C7,$C8,$C9
 ROUND_FACE_ATTR1 = $00
 ROUND_FACE_ATTR2 = $00
 .segment "CODE"
+; 顔ウィンドウ属性コピー用: 属性行内オフセット (行0-3 x 列5-7)
+round_attr_ofs:
+    .byte 0,1,2, 8,9,10, 16,17,18, 24,25,26
