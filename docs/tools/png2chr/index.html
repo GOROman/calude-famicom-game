@@ -44,13 +44,16 @@
 <main>
   <div class="panel">
     <h2>1. 画像を読み込む</h2>
-    <div id="drop">ここに PNG をドロップ<br>またはクリックして選択<br><small>(8の倍数サイズ推奨。自動で4色に減色)</small></div>
+    <div id="drop">ここに PNG をドロップ<br>またはクリックして選択<br><small>(自動で減色。マルチパレットなら最大13色を再現)</small></div>
     <input type="file" id="file" accept="image/*" hidden>
     <div class="note" id="info"></div>
-    <h2 style="margin-top:12px">2. パレット (クリックで背景色=色0に指定)</h2>
+    <label style="font-size:13px; display:block; margin-top:8px">
+      <input type="checkbox" id="multi" checked> マルチパレット (4パレット×3色+共通背景を 16x16 ブロック単位で自動割当)
+    </label>
+    <h2 style="margin-top:12px">2. パレット (自動割当)</h2>
     <div class="swatches" id="swatches"></div>
     <div class="note">色0 はスプライトでは透明として扱われます</div>
-    <h2 style="margin-top:12px">3. プレビュー (NES 4色)</h2>
+    <h2 style="margin-top:12px">3. プレビュー (NES 実色)</h2>
     <canvas id="preview" width="128" height="128" style="width:256px"></canvas>
   </div>
   <div class="panel" style="flex:1; min-width:320px">
@@ -79,7 +82,8 @@ const NES_PAL = [
 const drop = document.getElementById('drop'), fileIn = document.getElementById('file');
 const info = document.getElementById('info'), out = document.getElementById('out');
 const prev = document.getElementById('preview'), pctx = prev.getContext('2d');
-let img = null, pal4 = [], bgIdx = 0, pixels = null, W = 0, H = 0;
+const multiChk = document.getElementById('multi');
+let img = null;
 
 drop.addEventListener('click', () => fileIn.click());
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
@@ -87,6 +91,7 @@ drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over');
   if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); });
 fileIn.addEventListener('change', () => fileIn.files[0] && load(fileIn.files[0]));
+multiChk.addEventListener('change', () => img && process());
 
 function load(f) {
   const im = new Image();
@@ -97,90 +102,201 @@ function load(f) {
 function nearestNes(r, g, b) {
   let best = 0, bd = 1e9;
   for (let i = 0; i < 64; i++) {
-    if ((i & 15) >= 14) continue; // 黒のミラーは避ける
+    if ((i & 15) >= 14) continue;
     const [pr, pg, pb] = NES_PAL[i];
     const d = (r-pr)**2*2 + (g-pg)**2*4 + (b-pb)**2*3;
     if (d < bd) { bd = d; best = i; }
   }
   return best;
 }
+const dist2 = (a, b) => (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2;
+
+// メディアンカットで k 色に減色 (colors: [[r,g,b,count],...])
+function medianCut(colors, k) {
+  let boxes = [colors];
+  while (boxes.length < k) {
+    boxes.sort((a, b) => spread(b) - spread(a));
+    const box = boxes.shift();
+    if (box.length < 2) { boxes.push(box); break; }
+    const axis = widestAxis(box);
+    box.sort((a, b) => a[axis] - b[axis]);
+    const mid = box.length >> 1;
+    boxes.push(box.slice(0, mid), box.slice(mid));
+  }
+  return boxes.map(box => {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const c of box) { r += c[0]*c[3]; g += c[1]*c[3]; b += c[2]*c[3]; n += c[3]; }
+    return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+  });
+  function widestAxis(box) {
+    let best = 0, bw = -1;
+    for (let a = 0; a < 3; a++) {
+      const vs = box.map(c => c[a]);
+      const w = Math.max(...vs) - Math.min(...vs);
+      if (w > bw) { bw = w; best = a; }
+    }
+    return best;
+  }
+  function spread(box) {
+    let s = 0;
+    for (let a = 0; a < 3; a++) {
+      const vs = box.map(c => c[a]);
+      s = Math.max(s, Math.max(...vs) - Math.min(...vs));
+    }
+    return s * box.length;
+  }
+}
 
 function process() {
-  // 128px を超える画像は縮小 (アスペクト維持, 最近傍)
+  const multi = multiChk.checked;
   const scale = Math.min(1, 128 / Math.max(img.width, img.height));
-  W = Math.max(8, Math.ceil(img.width * scale / 8) * 8);
-  H = Math.max(8, Math.ceil(img.height * scale / 8) * 8);
+  const W = Math.max(16, Math.ceil(img.width * scale / 16) * 16);
+  const H = Math.max(16, Math.ceil(img.height * scale / 16) * 16);
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const x = c.getContext('2d');
   x.imageSmoothingEnabled = false;
   x.drawImage(img, 0, 0, W, H);
   const d = x.getImageData(0, 0, W, H).data;
-  // 色の頻度集計 (アルファ<128 は透明扱い)
+
+  // 色ヒストグラム (アルファ<128 は背景扱い)
   const freq = new Map();
+  let alphaCount = 0;
   for (let i = 0; i < d.length; i += 4) {
-    const key = d[i+3] < 128 ? -1 : ((d[i]>>3)<<10) | ((d[i+1]>>3)<<5) | (d[i+2]>>3);
+    if (d[i+3] < 128) { alphaCount++; continue; }
+    const key = ((d[i]>>3)<<10) | ((d[i+1]>>3)<<5) | (d[i+2]>>3);
     freq.set(key, (freq.get(key) || 0) + 1);
   }
-  // 上位4色 (透明があれば色0候補)
-  const sorted = [...freq.entries()].sort((a,b) => b[1]-a[1]).map(e => e[0]);
-  const hasAlpha = sorted.includes(-1);
-  let picks = sorted.filter(k => k !== -1).slice(0, 4);
-  const toRgb = k => [((k>>10)&31)<<3, ((k>>5)&31)<<3, (k&31)<<3];
-  pal4 = picks.map(toRgb);
-  while (pal4.length < 4) pal4.push([0,0,0]);
-  bgIdx = 0;
-  if (hasAlpha) { pal4.unshift([13,13,13]); pal4 = pal4.slice(0,4); } // 透明を色0に
-  // ピクセル → 4色インデックス
-  pixels = new Uint8Array(W*H);
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    if (d[i+3] < 128 && hasAlpha) { pixels[p] = 0; continue; }
-    let best = 0, bd = 1e9;
-    for (let j = 0; j < 4; j++) {
-      const dd = (d[i]-pal4[j][0])**2 + (d[i+1]-pal4[j][1])**2 + (d[i+2]-pal4[j][2])**2;
-      if (dd < bd) { bd = dd; best = j; }
-    }
-    pixels[p] = best;
-  }
-  info.textContent = `${img.width}x${img.height} → ${W}x${H} (${W/8}x${H/8} タイル = ${W*H/64} 枚), 色数 ${Math.min(sorted.length,99)} → 4`;
-  render();
-}
+  const hist = [...freq.entries()].map(([k, n]) =>
+    [((k>>10)&31)<<3, ((k>>5)&31)<<3, (k&31)<<3, n]).sort((a,b) => b[3]-a[3]);
 
-function render() {
-  // bgIdx を色0 に並べ替えたパレット順
-  const order = [bgIdx, ...[0,1,2,3].filter(i => i !== bgIdx)];
-  const nes = order.map(i => nearestNes(...pal4[i]));
-  // スウォッチ
-  const sw = document.getElementById('swatches');
-  sw.innerHTML = '';
-  order.forEach((pi, slot) => {
-    const [r,g,b] = NES_PAL[nes[slot]];
-    const el = document.createElement('div');
-    el.className = 'sw' + (slot === 0 ? ' bg' : '');
-    el.style.background = `rgb(${r},${g},${b})`;
-    el.textContent = '$' + nes[slot].toString(16).padStart(2,'0').toUpperCase();
-    el.title = slot === 0 ? '色0 (背景/透明)' : `色${slot}`;
-    el.onclick = () => { bgIdx = pi; render(); };
-    sw.appendChild(el);
+  // 背景色 = 透明 or 最頻色
+  const bgRgb = alphaCount > 0 ? [13,13,13] : hist[0].slice(0,3);
+  const bodyHist = alphaCount > 0 ? hist : hist.slice(1);
+
+  // 使える色数: シングル=3, マルチ=最大12
+  const kmax = multi ? 12 : 3;
+  const quant = bodyHist.length > kmax ? medianCut(bodyHist, kmax) : bodyHist.map(h => h.slice(0,3));
+
+  // ピクセル → 量子化色番号 (背景=-1)
+  const qIndex = (r,g,b) => {
+    let best = 0, bd = 1e9;
+    for (let i = 0; i < quant.length; i++) { const dd = dist2([r,g,b], quant[i]); if (dd < bd) { bd = dd; best = i; } }
+    return best;
+  };
+  const qpix = new Int8Array(W*H);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    if (d[i+3] < 128 && alphaCount > 0) { qpix[p] = -1; continue; }
+    const px = [d[i], d[i+1], d[i+2]];
+    if (alphaCount === 0 && dist2(px, bgRgb) < 64) { qpix[p] = -1; continue; }
+    qpix[p] = qIndex(...px);
+  }
+
+  // 各16x16ブロックの上位3色
+  const BW = W/16, BH = H/16;
+  const blockCols = [];
+  for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+    const cnt = new Map();
+    for (let y = 0; y < 16; y++) for (let xx = 0; xx < 16; xx++) {
+      const q = qpix[(by*16+y)*W + bx*16+xx];
+      if (q >= 0) cnt.set(q, (cnt.get(q)||0)+1);
+    }
+    blockCols.push([...cnt.entries()].sort((a,b) => b[1]-a[1]).slice(0,3).map(e => e[0]));
+  }
+
+  // パレット割当: 色数の多いブロックから貪欲にパッキング (最大4本)
+  const palettes = [];
+  const blockPal = new Int8Array(BW*BH);
+  const order = blockCols.map((cols, i) => [i, cols]).sort((a,b) => b[1].length - a[1].length);
+  const maxPals = multi ? 4 : 1;
+  for (const [bi, cols] of order) {
+    let placed = -1;
+    for (let p = 0; p < palettes.length; p++) {
+      const uni = new Set([...palettes[p], ...cols]);
+      if (uni.size <= 3) { palettes[p] = [...uni]; placed = p; break; }
+    }
+    if (placed < 0 && palettes.length < maxPals) { palettes.push([...cols]); placed = palettes.length-1; }
+    if (placed < 0) {
+      let best = 0, bd = 1e9;
+      for (let p = 0; p < palettes.length; p++) {
+        let err = 0;
+        for (const q of cols) {
+          let e = 1e9;
+          for (const pq of palettes[p]) e = Math.min(e, dist2(quant[q], quant[pq]));
+          err += e;
+        }
+        if (err < bd) { bd = err; best = p; }
+      }
+      placed = best;
+    }
+    blockPal[bi] = placed;
+  }
+  while (palettes.length < maxPals) palettes.push([]);
+
+  // NES 色へ
+  const bgNes = alphaCount > 0 ? 0x0D : nearestNes(...bgRgb);
+  const nesPals = palettes.map(pal => {
+    const a = pal.map(q => nearestNes(...quant[q]));
+    while (a.length < 3) a.push(0x0D);
+    return a;
   });
-  if (!pixels) return;
-  // プレビュー (NES 実色で描画)
+
+  // ピクセル → パレットローカル番号 (0-3)
+  const pixels = new Uint8Array(W*H);
+  for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+    const pal = palettes[blockPal[by*BW+bx]];
+    for (let y = 0; y < 16; y++) for (let xx = 0; xx < 16; xx++) {
+      const p = (by*16+y)*W + bx*16+xx, q = qpix[p];
+      if (q < 0 || !pal.length) { pixels[p] = 0; continue; }
+      let best = 0, bd = 1e9;
+      for (let s = 0; s < pal.length; s++) { const dd = dist2(quant[q], quant[pal[s]]); if (dd < bd) { bd = dd; best = s+1; } }
+      pixels[p] = best;
+    }
+  }
+
+  // プレビュー (割当パレットの NES 実色)
   prev.width = W; prev.height = H;
   const idata = pctx.createImageData(W, H);
-  const inv = [0,0,0,0]; order.forEach((pi, slot) => inv[pi] = slot);
-  for (let p = 0; p < W*H; p++) {
-    const [r,g,b] = NES_PAL[nes[inv[pixels[p]]]];
-    idata.data[p*4] = r; idata.data[p*4+1] = g; idata.data[p*4+2] = b; idata.data[p*4+3] = 255;
+  for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+    const pi = blockPal[by*BW+bx];
+    for (let y = 0; y < 16; y++) for (let xx = 0; xx < 16; xx++) {
+      const p = (by*16+y)*W + bx*16+xx, v = pixels[p];
+      const nes = v === 0 ? bgNes : nesPals[pi][v-1];
+      const [r,g,b] = NES_PAL[nes];
+      idata.data[p*4] = r; idata.data[p*4+1] = g; idata.data[p*4+2] = b; idata.data[p*4+3] = 255;
+    }
   }
   pctx.putImageData(idata, 0, 0);
-  // CHR 生成
+
+  // スウォッチ (パレットごとに1行)
+  const swWrap = document.getElementById('swatches');
+  swWrap.innerHTML = '';
+  const hex = v => '$' + v.toString(16).padStart(2,'0').toUpperCase();
+  nesPals.forEach((pal, pi) => {
+    if (!multi && pi > 0) return;
+    const row = document.createElement('div');
+    row.className = 'swatches';
+    row.style.margin = '2px 0';
+    [bgNes, ...pal].forEach((nes, slot) => {
+      const [r,g,b] = NES_PAL[nes];
+      const el = document.createElement('div');
+      el.className = 'sw' + (slot === 0 ? ' bg' : '');
+      el.style.width = '34px'; el.style.height = '34px';
+      el.style.background = `rgb(${r},${g},${b})`;
+      el.textContent = hex(nes);
+      row.appendChild(el);
+    });
+    swWrap.appendChild(row);
+  });
+
+  // CHR + テキスト出力
   const tiles = [];
   for (let ty = 0; ty < H/8; ty++) for (let tx = 0; tx < W/8; tx++) {
     const p0 = [], p1 = [];
     for (let y = 0; y < 8; y++) {
       let b0 = 0, b1 = 0;
-      for (let x = 0; x < 8; x++) {
-        const v = inv[pixels[(ty*8+y)*W + tx*8+x]];
+      for (let xx = 0; xx < 8; xx++) {
+        const v = pixels[(ty*8+y)*W + tx*8+xx];
         b0 = (b0<<1) | (v&1); b1 = (b1<<1) | (v>>1);
       }
       p0.push(b0); p1.push(b1);
@@ -188,16 +304,25 @@ function render() {
     tiles.push([...p0, ...p1]);
   }
   window._chr = new Uint8Array(tiles.flat());
-  // ca65 テキスト
-  const hex = v => '$' + v.toString(16).padStart(2,'0').toUpperCase();
-  let txt = `; ${W}x${H} → ${tiles.length} タイル (png2chr で生成)\n`;
-  txt += `; パレット: .byte ${nes.map(hex).join(',')}\n`;
+  let txt = `; ${W}x${H} → ${tiles.length} タイル (png2chr ${multi?'マルチパレット':'シングル'})\n`;
+  txt += `; パレット (共通背景 ${hex(bgNes)}):\n`;
+  nesPals.slice(0, multi?4:1).forEach((pal, pi) => {
+    txt += `;   pal${pi}: .byte ${hex(bgNes)},${pal.map(hex).join(',')}\n`;
+  });
+  if (multi) {
+    txt += `; 16x16ブロックごとのパレット番号 (${BW}x${BH}, 属性テーブル用):\n`;
+    for (let by = 0; by < BH; by++) {
+      txt += ';   .byte ' + [...blockPal.slice(by*BW, by*BW+BW)].join(',') + '\n';
+    }
+  }
   tiles.forEach((t, i) => {
     txt += `; tile ${i}\n`;
     txt += '    .byte ' + t.slice(0,8).map(hex).join(',') + '\n';
     txt += '    .byte ' + t.slice(8).map(hex).join(',') + '\n';
   });
   out.value = txt;
+  info.textContent = `${img.width}x${img.height} → ${W}x${H} (${tiles.length} タイル), 元の色数 ${hist.length + (alphaCount?1:0)} → ` +
+    (multi ? `4パレット x 3色 + 共通背景` : `4色`);
 }
 
 document.getElementById('dl-chr').addEventListener('click', () => {
