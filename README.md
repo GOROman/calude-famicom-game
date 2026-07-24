@@ -115,6 +115,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [Step 6: 4つのステージと6つの効果音](docs/diary/step6.md)
 - [磨きの日 (スコア・2曲構成・デチューン)](docs/diary/polish.md)
 - [512枚のタイル (イラストのタイトル画面化)](docs/diary/image-title.md)
+- [決意の門 (ボスとエンディング)](docs/diary/boss.md)
 
 ## License
 
