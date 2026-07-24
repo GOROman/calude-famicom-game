@@ -1,13 +1,13 @@
 ; ラウンド画面のセリフ + 顔データ (roundface_gen.py 生成 / かなは美咲フォント)
 .segment "RODATA"
 round_dlg0:
-    .byte $E8,$F1,$E2,$FD,$FE,$FA,$FF,$F0,$E5,$EA,$EB,$F9,$FA,$FF,$E4,$F4,$E2,$81,$00
+    .byte $EC,$E7,$E5,$F3,$F8,$F1,$01,$E8,$EF,$E2,$FE,$FF,$F3,$02,$E8,$EF,$E2,$FB,$01,$E5,$EE,$F7,$F0,$F6,$EC,$FA,$81,$00
 round_dlg1:
-    .byte $E8,$F1,$E2,$FA,$FF,$E9,$E3,$F3,$E3,$F5,$FF,$E6,$E4,$F2,$F7,$EE,$F9,$81,$00
+    .byte $E8,$EF,$E2,$FB,$01,$E9,$E3,$F2,$E3,$F4,$02,$E5,$E4,$F0,$F6,$EC,$FA,$81,$00
 round_dlg2:
-    .byte $EF,$E3,$F8,$FF,$E9,$E3,$F3,$E3,$E9,$EF,$E7,$FF,$ED,$F6,$F2,$F8,$81,$00
+    .byte $ED,$E3,$F9,$01,$E9,$E3,$F2,$E3,$E9,$ED,$E6,$02,$EB,$F5,$F0,$F9,$81,$00
 round_dlg3:
-    .byte $F1,$F8,$E2,$FF,$E8,$F1,$E2,$FA,$FF,$E6,$FC,$EC,$F9,$FB,$FF,$FF,$81,$00
+    .byte $EF,$F9,$E2,$01,$E8,$EF,$E2,$FB,$02,$E5,$FD,$EA,$FA,$FC,$8E,$8E,$81,$00
 round_dlg_lo: .byte <round_dlg0,<round_dlg1,<round_dlg2,<round_dlg3
 round_dlg_hi: .byte >round_dlg0,>round_dlg1,>round_dlg2,>round_dlg3
 round_face_ids:

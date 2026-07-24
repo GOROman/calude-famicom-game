@@ -172,10 +172,19 @@ draw_round_bg:
 @dlg:
     lda (text_ptr),y
     beq @dlg_done
-    cmp #$FF
+    cmp #$02            ; 改行 → 2行目 (行7, 列12)
+    bne :+
+    bit PPUSTATUS
+    lda #$20
+    sta PPUADDR
+    lda #$EC            ; $2000 + 7*32 + 12
+    sta PPUADDR
+    jmp @dlg_next
+:   cmp #$01
     bne :+
     lda #$80            ; 空白
 :   sta PPUDATA
+@dlg_next:
     iny
     bne @dlg
 @dlg_done:

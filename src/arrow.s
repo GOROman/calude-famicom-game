@@ -153,7 +153,10 @@ update_arrows:
     bne @spawn_up
     lda buttons
     and #BTN_DOWN
-    bne @spawn_down
+    beq :+
+    lda on_ground       ; 下撃ちは空中限定 (地上では横撃ち)
+    beq @spawn_down
+:
     lda facing
     beq @spawn_right
     lda #2              ; 左向き発射
