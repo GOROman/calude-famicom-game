@@ -196,6 +196,15 @@ show_title:
     sta scroll_hi
     sta menu_sel
     sta snd_fade        ; BGM フェードイン開始
+    sta blink_phase
+    sta blink_again
+    sta title_exit
+    sta fade_amt
+    lda #90
+    sta blink_timer
+    lda #$A5            ; LFSR シード
+    sta rng
+    lda #0
     lda #1
     jsr set_chr_bank
     ; パレット: BG は画像から生成した4本, スプライトはカーソル用の白
@@ -357,6 +366,38 @@ update_ending:
 ; ---- タイトルの更新: メニュー選択 + 決定 ----
 update_title:
     inc frame_count
+    ; ---- 8bit LFSR (目パチのランダム化) ----
+    lda rng
+    asl
+    bcc :+
+    eor #$1D
+:   sta rng
+    ; ---- 退場演出中: ウィンク → パレットフェード → 遷移 ----
+    lda title_exit
+    beq @no_exit
+    inc title_exit
+    lda title_exit
+    cmp #30
+    bcc @exit_draw      ; まずウィンクだけ (30F)
+    sec                 ; 以降 8F ごとに 1 段暗く
+    sbc #30
+    lsr
+    lsr
+    lsr
+    clc
+    adc #1
+    asl
+    asl
+    asl
+    asl
+    sta fade_amt
+    lda title_exit
+    cmp #110            ; ウィンク30F + フェード80F で遷移
+    bcc @exit_draw
+    jmp @go_selected
+@exit_draw:
+    jmp @draw_eyes
+@no_exit:
     ; ↓ でカーソル移動
     lda buttons
     and #BTN_DOWN
@@ -388,7 +429,52 @@ update_title:
     sta OAM_BUF+6
     lda #44
     sta OAM_BUF+7
-    ; ---- 目パチ: 約2秒ごとに 8F 閉じる。開いている間は白目を重ねる ----
+    ; ---- 目パチ FSM: 開→半目→閉→半目→開。間隔ランダム + 時々2連 ----
+    dec blink_timer
+    bne @draw_eyes
+    lda blink_phase
+    bne :+
+    lda #1              ; 開→半目 (閉じ際)
+    sta blink_phase
+    lda #3
+    sta blink_timer
+    lda rng             ; 2連目パチの抽選 (約1/4)
+    and #7
+    cmp #2
+    bcs @draw_eyes
+    lda #1
+    sta blink_again
+    bne @draw_eyes
+:   cmp #1
+    bne :+
+    lda #2              ; 半目→閉
+    sta blink_phase
+    lda #7
+    sta blink_timer
+    bne @draw_eyes
+:   cmp #2
+    bne :+
+    lda #3              ; 閉→半目 (開き際)
+    sta blink_phase
+    lda #3
+    sta blink_timer
+    bne @draw_eyes
+:   lda #0              ; 半目→開
+    sta blink_phase
+    lda blink_again
+    beq @rand_wait
+    lda #0
+    sta blink_again
+    lda #14             ; 2連目パチ: 少し置いてもう一度
+    sta blink_timer
+    bne @draw_eyes
+@rand_wait:
+    lda rng             ; 次の目パチまで 80〜207F のランダム
+    and #127
+    clc
+    adc #80
+    sta blink_timer
+@draw_eyes:
     ldx #0              ; まず目スプライト枠 (8枚) を全部隠す
     lda #$FF
 :   sta OAM_BUF+8,x
@@ -398,26 +484,49 @@ update_title:
     inx
     cpx #32
     bne :-
-    lda frame_count
-    and #%01111111
-    cmp #8
-    bcs @eyes_open
-    ldx #0              ; 閉じ目 (両目)
+    lda title_exit      ; 退場演出: ウィンク (手前の目だけ閉じ)
+    beq @by_phase
+    lda fade_amt
+    bne @eyes_done      ; フェードが始まったらスプライトも消す
+    ldx #0
+:   lda title_eye_spr,x
+    sta OAM_BUF+8,x
+    inx
+    cpx #(TITLE_EYE_NEAR*4)
+    bne :-
+    ; カーソルも消す (ウィンクの主役を立てる)
+    lda #$FF
+    sta OAM_BUF+4
+    bne @eyes_done
+@by_phase:
+    lda blink_phase
+    beq @eyes_open
+    cmp #2
+    beq @eyes_closed
+    ldx #0              ; 半目
+:   lda title_eye_half,x
+    sta OAM_BUF+8,x
+    inx
+    cpx #(TITLE_EYE_HN*4)
+    bne :-
+    beq @eyes_done
+@eyes_closed:
+    ldx #0
 :   lda title_eye_spr,x
     sta OAM_BUF+8,x
     inx
     cpx #(TITLE_EYE_N*4)
     bne :-
-    beq @eyes_done      ; 常に分岐
+    beq @eyes_done
 @eyes_open:
-    ldx #0              ; 白目 (両目)
+    ldx #0              ; 白目 (開き目のとき常時表示)
 :   lda title_eye_open,x
     sta OAM_BUF+8,x
     inx
     cpx #(TITLE_EYE_ON*4)
     bne :-
 @eyes_done:
-    ; START / A で決定
+    ; START / A で決定 → ウィンク+フェードの退場演出を開始
     lda buttons
     and #(BTN_START | BTN_A)
     beq @done
@@ -427,6 +536,12 @@ update_title:
     lda menu_sel
     cmp #2
     beq @done           ; OPTION は未実装 (飾り)
+    lda #1
+    sta title_exit
+    rts
+
+@go_selected:
+    lda menu_sel
     cmp #1
     beq @go             ; CONTINUE: 前回のステージから
     lda #0              ; START: 1-1 から

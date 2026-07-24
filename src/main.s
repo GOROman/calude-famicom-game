@@ -107,6 +107,12 @@ coin_tens:    .res 1    ; コイン枚数 (10進 上桁)
 coin_ptr:     .res 2    ; 現在ステージの coin_map ポインタ
 coin_ppu_hi:  .res 1    ; 取得コインの消去先 PPU アドレス (0=なし)
 coin_ppu_lo:  .res 1
+blink_timer:  .res 1    ; 目パチ: 次の動作までのフレーム
+blink_phase:  .res 1    ; 0=開 1=半目(閉じ際) 2=閉 3=半目(開き際)
+blink_again:  .res 1    ; 1=2連目パチ予約
+rng:          .res 1    ; 8bit LFSR (目パチの間隔ランダム化)
+title_exit:   .res 1    ; タイトル退場演出 (0=なし, 1〜=ウィンク→フェード)
+fade_amt:     .res 1    ; パレットフェードの減算量 (NMI が適用)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -223,6 +229,32 @@ nmi:
     sta PPUCTRL
     jsr write_column
 @no_col:
+    ; ---- タイトル退場: パレットフェードアウト (BG 16バイトを暗転) ----
+    lda game_state
+    cmp #4
+    bne @no_fade
+    lda fade_amt
+    beq @no_fade
+    bit PPUSTATUS
+    ldy #$3F
+    sty PPUADDR
+    ldy #$00
+    sty PPUADDR
+    ldx #0
+@fade_loop:
+    lda title_img_palette,x
+    sec
+    sbc fade_amt
+    bcs :+
+    lda #$0F            ; 引き切ったら黒
+:   cmp #$0F
+    bcs :+
+    lda #$0F            ; 行0 のゴミ色も黒へ
+:   sta PPUDATA
+    inx
+    cpx #16
+    bne @fade_loop
+@no_fade:
     ; ---- 取得コインの BG タイル消去 ----
     lda coin_ppu_hi
     beq @no_coin_erase
@@ -238,6 +270,8 @@ nmi:
     lda game_state
     cmp #4
     bne @no_palanim
+    lda fade_amt
+    bne @no_palanim     ; フェード中はロゴの明滅も停止
     lda frame_count     ; (update_title が毎フレーム加算)
     and #7
     bne @no_palanim
