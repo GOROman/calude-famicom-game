@@ -5,22 +5,22 @@
 ; tile $00: blank
     .res 16, $00
 ; tile $01: hunter top-left
-    .byte $07,$08,$10,$17,$17,$17,$08,$10
-    .byte $00,$07,$0F,$0F,$0D,$0F,$07,$0F
+    .byte $0F,$0F,$7F,$FF,$FF,$7F,$7F,$31
+    .byte $00,$00,$00,$00,$03,$03,$03,$01
 ; tile $02: hunter top-right
-    .byte $E0,$10,$08,$EA,$EB,$EB,$13,$0F
-    .byte $00,$E0,$F0,$F0,$B2,$F2,$E2,$F6
+    .byte $F0,$F0,$F4,$F2,$F2,$F2,$F2,$E2
+    .byte $00,$00,$00,$70,$D0,$F0,$F0,$E0
 ; tile $03: hunter bottom-left
-    .byte $20,$20,$10,$0C,$09,$09,$09,$1E
-    .byte $1F,$1F,$0F,$03,$06,$06,$06,$00
+    .byte $30,$00,$00,$00,$03,$03,$07,$07
+    .byte $07,$0F,$0F,$1F,$03,$03,$00,$00
 ; tile $04: hunter bottom-right
-    .byte $07,$07,$0B,$33,$93,$92,$90,$F0
-    .byte $FA,$FA,$F2,$C2,$62,$60,$60,$00
+    .byte $1A,$02,$02,$02,$62,$64,$70,$70
+    .byte $F8,$F0,$F0,$F8,$60,$60,$00,$00
 
 ; ---- BG タイル (scratchpad の ground.py で生成) ----
 ; tile $05: grass top (地面の上端: 明緑の草 + 茶の土)
-    .byte $00,$44,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $FF,$BB,$00,$FF,$DF,$FD,$FF,$BF
+    .byte $00,$00,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $A5,$FF,$00,$FF,$DF,$FD,$FF,$BF
 ; tile $06: dirt (土: 茶ベースに暗色の粒)
     .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
     .byte $FF,$EF,$FE,$7F,$FB,$DF,$FF,$F7
@@ -36,23 +36,23 @@
 
 ; ---- アニメポーズ (scratchpad の poses.py で生成) ----
 ; tile $09: walk2 bottom-left (足を開いた歩きポーズ)
-    .byte $20,$20,$10,$0C,$12,$24,$38,$00
-    .byte $1F,$1F,$0F,$03,$0C,$18,$00,$00
+    .byte $30,$00,$00,$00,$0C,$0C,$1C,$1C
+    .byte $07,$0F,$0F,$1F,$0C,$0C,$00,$00
 ; tile $0A: walk2 bottom-right
-    .byte $07,$07,$0B,$33,$4B,$25,$1C,$00
-    .byte $FA,$FA,$F2,$C2,$32,$18,$00,$00
+    .byte $1A,$02,$02,$02,$32,$34,$1C,$1C
+    .byte $F8,$F0,$F0,$F8,$30,$30,$00,$00
 ; tile $0B: jump bottom-left (足をたたんだ空中ポーズ)
-    .byte $20,$20,$10,$0F,$13,$13,$0C,$00
-    .byte $1F,$1F,$0F,$00,$0C,$0C,$00,$00
+    .byte $30,$00,$00,$00,$03,$07,$00,$00
+    .byte $07,$0F,$0F,$1F,$03,$00,$00,$00
 ; tile $0C: jump bottom-right
-    .byte $07,$07,$0B,$C3,$23,$22,$C0,$00
-    .byte $FA,$FA,$F2,$02,$C2,$C0,$00,$00
+    .byte $1A,$02,$02,$02,$62,$74,$00,$00
+    .byte $F8,$F0,$F0,$F8,$60,$00,$00,$00
 ; tile $0D: attack top-left (弓を引くポーズ)
-    .byte $07,$08,$10,$17,$17,$17,$08,$10
-    .byte $00,$07,$0F,$0F,$0D,$0F,$07,$0F
+    .byte $0F,$0F,$7F,$FF,$FF,$7F,$7F,$31
+    .byte $00,$00,$00,$00,$03,$03,$03,$01
 ; tile $0E: attack top-right
-    .byte $E0,$10,$08,$EA,$ED,$ED,$19,$3F
-    .byte $00,$E0,$F0,$F0,$B4,$F4,$E8,$D8
+    .byte $F0,$F0,$F2,$F1,$F5,$F5,$FD,$E5
+    .byte $00,$00,$00,$70,$D4,$F4,$FC,$E4
 
 ; tile $0F: 未使用 (行頭合わせのパディング)
     .res 16, $00
@@ -77,10 +77,10 @@
 ; ---- 決意マン (scratchpad の ketsuiman.py で生成。スプライトパレット1) ----
 ; tile $54: ketsuiman TL
     .byte $00,$00,$00,$03,$07,$0F,$0F,$0F
-    .byte $01,$03,$07,$0F,$1F,$3F,$79,$F9
+    .byte $01,$03,$07,$0F,$1F,$3B,$79,$F9
 ; tile $55: ketsuiman TR
     .byte $00,$00,$00,$C0,$E0,$F0,$F0,$F0
-    .byte $80,$C0,$E0,$F0,$F8,$FC,$9E,$9F
+    .byte $80,$C0,$E0,$F0,$F8,$DC,$9E,$9F
 ; tile $56: ketsuiman BL
     .byte $0F,$0F,$07,$00,$00,$00,$00,$00
     .byte $FF,$FE,$7F,$3F,$1F,$0F,$03,$01
@@ -118,11 +118,11 @@
 
 ; ---- 狩人ダメージ顔と「ステージクリア!」 (clear_death.py で生成) ----
 ; tile $60: hunter hurt TL (X目)
-    .byte $07,$08,$10,$17,$17,$17,$08,$10
-    .byte $00,$07,$0F,$0B,$0D,$0E,$07,$0F
+    .byte $0F,$0F,$7F,$FF,$FF,$7F,$7F,$31
+    .byte $00,$00,$00,$00,$03,$03,$03,$01
 ; tile $61: hunter hurt TR
-    .byte $E0,$10,$08,$EA,$EB,$EB,$13,$0F
-    .byte $00,$E0,$F0,$D0,$B2,$72,$E2,$F6
+    .byte $F0,$F0,$F4,$F2,$F2,$F2,$F2,$E2
+    .byte $00,$00,$00,$70,$A0,$D0,$90,$E0
 ; tile $62-$69: 「ステージクリア!」 (美咲太字, 色3)
     .byte $00,$7E,$06,$0C,$0C,$3E,$E3,$00
     .byte $00,$7E,$06,$0C,$0C,$3E,$E3,$00
@@ -164,10 +164,10 @@
     .byte $03,$03,$0F,$0F,$3F,$3F,$FF,$FF
 ; tile $D5: boss 1,1
     .byte $3F,$3F,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $FF,$FF,$FF,$FF,$C3,$C3,$C3,$C3
+    .byte $FF,$FF,$CF,$CF,$C3,$C3,$C3,$C3
 ; tile $D6: boss 1,2
     .byte $FC,$FC,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $FF,$FF,$FF,$FF,$C3,$C3,$C3,$C3
+    .byte $FF,$FF,$F3,$F3,$C3,$C3,$C3,$C3
 ; tile $D7: boss 1,3
     .byte $00,$00,$00,$00,$00,$00,$00,$00
     .byte $C0,$C0,$F0,$F0,$FC,$FC,$FF,$FF
