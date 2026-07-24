@@ -583,66 +583,83 @@ sfx_overlay:
 @jp2:
     cpx #3
     bne @jp3
-    lda #$5F            ; 第2相
-    sta SQ1_VOL
-    lda #$F6
+    lda #$F6            ; 第2相
     sta $4001
     bne @jp_done
 @jp3:
     cpx #8
     bne @jp_done
-    lda #$48            ; 第3相: 上昇スイープの尻上がり
-    sta SQ1_VOL
-    lda #$BC
+    lda #$BC            ; 第3相: 上昇スイープの尻上がり
     sta $4001
 @jp_done:
+    lda #$82            ; $4000 は毎フレーム再主張 (BGM のミュート書きに勝つ)
+    cpx #3
+    bcc :+
+    lda #$5F
+    cpx #8
+    bcc :+
+    lda #$48
+:   sta SQ1_VOL
     inc sfx1_t
     jmp @sq2
 @startse:
-    cpx #48             ; 開始ファンファーレ: C 和音の高速アルペジオ (SQ1+SQ2) + TRI ルート
+    cpx #48             ; 開始ファンファーレ: 和音 (SQ1+SQ2+TRI), アルペジオなし
     bcc :+
     lda #$80
     sta TRI_LIN
     jmp @end1
-:   txa                 ; SQ1: 2Fごとに C5→E5→G5→C6
-    lsr
-    and #3
-    tay
-    ldx start_arp,y
-    lda pulse_lo_tbl,x
+:   cpx #0
+    bne @fp2
+    ldy #10             ; 第1和音: C5 + E5
+    lda pulse_lo_tbl,y
     sta $4002
-    lda pulse_hi_tbl,x
+    lda pulse_hi_tbl,y
     ora #%11111000
     sta $4003
-    lda #%10111010      ; duty50 vol10
-    sta SQ1_VOL
-    ldx sfx1_t          ; SQ2: 1音ずらしの逆相アルペジオ (薄め)
-    txa
-    lsr
-    clc
-    adc #2
-    and #3
-    tay
-    ldx start_arp,y
-    lda pulse_lo_tbl,x
+    ldy #11
+    lda pulse_lo_tbl,y
     sta $4006
-    lda pulse_hi_tbl,x
+    lda pulse_hi_tbl,y
     ora #%11111000
     sta $4007
-    lda #%10110110      ; vol6
-    sta SQ2_VOL
-    ldx sfx1_t
-    cpx #0
-    bne :+
-    lda bass_lo_tbl+4   ; TRI: C3 ルートを鳴らしっぱなし
+    lda bass_lo_tbl+4   ; TRI: C3 ルート
     sta TRI_LO
     lda bass_hi_tbl+4
     sta TRI_HI
     lda #$FF
     sta TRI_LIN
-:   inc sfx1_t
+    bne @fp_vol
+@fp2:
+    cpx #14
+    bne @fp_vol
+    ldy #11             ; 第2和音: E5 + G5 (積み上がる)
+    lda pulse_lo_tbl,y
+    sta $4002
+    lda pulse_hi_tbl,y
+    ora #%11111000
+    sta $4003
+    ldy #12
+    lda pulse_lo_tbl,y
+    sta $4006
+    lda pulse_hi_tbl,y
+    ora #%11111000
+    sta $4007
+@fp_vol:
+    lda #$FF            ; TRI ルートを毎フレーム再主張 (退場ミュートに勝つ)
+    sta TRI_LIN
+    txa                 ; ゆっくり減衰 (11 - t/8)
+    lsr
+    lsr
+    lsr
+    sta tmp
+    lda #11
+    sec
+    sbc tmp
+    ora #%10110000      ; デューティ50%
+    sta SQ1_VOL
+    sta SQ2_VOL
+    inc sfx1_t
     jmp @noi            ; SQ2 も使ったのでノイズへ直行
-@startse_end:
 @miss:
     cpx #40             ; ミス: E4 → D4 → A3 の下降 (40F)
     bcs @end1
