@@ -108,6 +108,9 @@ update_sound:
     bne @fade_done
     lda snd_tick
     bne @fade_done
+    lda snd_step        ; 2ステップごとに1段 (段階的な導入を聴かせる)
+    and #1
+    bne @fade_done
     lda snd_fade
     cmp #15
     bcs @fade_done
@@ -124,13 +127,8 @@ update_sound:
     asl
     ora snd_step
     sta tmp             ; tmp = 曲内位置 (0-63)
-    ldx snd_step
-    lda snd_fade
-    cmp #8
-    bcs :+
-    ldx #0              ; フェード前半はドラムなし
-    beq @no_drums
-:   lda drum_pat,x
+    ldx snd_step        ; ドラムはフェード中も最初から鳴る (リズム先行)
+    lda drum_pat,x
     tax                 ; X = ドラムビット
     and #2              ; スネア (DMC は1本なのでキックより優先)
     beq @try_kick
@@ -141,7 +139,6 @@ update_sound:
     and #1
     beq @drums_done
     jsr trig_kick
-@no_drums:
 @drums_done:
     txa
     and #4              ; クローズハット
@@ -159,7 +156,7 @@ update_sound:
     lda #1
     sta hat_decay
     jsr trig_hat
-:   ; ---- ベース (303 風: ターゲットをセットしてスライドで向かう) ----
+:   ; ---- ベース (スイープなし: ノートオンで周期を直接セット) ----
     ldy tmp
     jsr get_bass        ; 曲別 (タイトル=コード進行 / ゲーム=Am グルーヴ)
     beq @bass_off
@@ -168,24 +165,25 @@ update_sound:
     sta bass_age        ; 鳴り始め → 深いビブラート
     lda bass_lo_tbl,x
     sta bass_tgt_lo
+    sta bass_cur_lo
     lda bass_hi_tbl,x
     sta bass_tgt_hi
-    lda bass_cur_hi     ; 無音からの発音はスライドせず直接セット
-    ora bass_cur_lo
-    bne :+
-    lda bass_tgt_lo
-    sta bass_cur_lo
-    lda bass_tgt_hi
     sta bass_cur_hi
-:   lda #$FF            ; リニアカウンタ制御+最大 → 鳴らし続ける
+    lda #$FF            ; リニアカウンタ制御+最大 → 鳴らし続ける
     sta TRI_LIN
     jmp @melody
 @bass_off:
     lda #$80            ; 消音 (cur は保持 → 次ノートへスライド)
     sta TRI_LIN
 @melody:
-    ; ---- メロディ (SQ1) ----
-    ldy tmp
+    ; ---- メロディ (SQ1): フェード終盤 (ドラム→ベースの後) にスタート ----
+    lda game_state
+    cmp #4
+    bcc :+
+    lda snd_fade
+    cmp #11
+    bcc @mel_rest
+:   ldy tmp
     jsr get_mel
     beq @mel_rest
     tax
@@ -205,6 +203,9 @@ update_sound:
     lda game_state
     cmp #4
     bcc @echo_mode
+    lda snd_fade        ; メロディ未スタート中はデチューンも休み
+    cmp #11
+    bcc @echo_rest
     ldy tmp             ; デチューン: 同じノートを周期+1 でずらして重ねる
     jsr get_mel
     beq @echo_rest
@@ -386,8 +387,8 @@ bass_update:
     bcc @write
     inc bass_cur_hi
 @write:
-    lda snd_fade        ; フェード前半はベースも消音
-    cmp #4
+    lda snd_fade        ; ベースはフェード中盤 (ドラムの後) から
+    cmp #6
     bcs :+
     lda #$80
     sta TRI_LIN

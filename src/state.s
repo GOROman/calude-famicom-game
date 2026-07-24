@@ -4,9 +4,9 @@
 STATE_TIME_CLEAR = 240
 STATE_TIME_DEATH = 60
 STATE_TIME_OVER  = 240
-TEXT_OAM = 84           ; スプライト 21-32 (最大12文字)
-HUD_OAM  = 132          ; スプライト 33-37 (残機 + ステージ番号)
-SCORE_OAM = 152         ; スプライト 38-43 (スコア6桁)
+TEXT_OAM = 100          ; スプライト 25-36 (最大12文字)
+HUD_OAM  = 148          ; スプライト 37-41 (残機 + ステージ番号)
+SCORE_OAM = 168         ; スプライト 42-47 (スコア6桁)
 NUM_STAGES = 4
 
 .segment "CODE"
@@ -397,7 +397,7 @@ draw_hud:
     sta OAM_BUF+HUD_OAM+8
     sta OAM_BUF+HUD_OAM+12
     sta OAM_BUF+HUD_OAM+16
-    lda #$01            ; 狩人の頭タイル
+    lda #$03            ; 狩人の顔タイル (頭の右下)
     sta OAM_BUF+HUD_OAM+1
     lda lives
     clc
@@ -548,7 +548,7 @@ title_spr_palette:                     ; カーソル用 (白)
     .byte $0F,$0F,$0F,$30
     .byte $0F,$0F,$0F,$30
     .byte $0F,$0F,$0F,$30
-title_menu_y: .byte 111, 127, 143      ; START / CONTINUE / OPTION のカーソル Y
+title_menu_y: .byte 122, 136, 150      ; START / CONTINUE / OPTION のカーソル Y
 ending_palette:
     .byte $0F,$0F,$16,$30
     .byte $0F,$0F,$16,$30

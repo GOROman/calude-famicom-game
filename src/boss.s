@@ -4,7 +4,7 @@
 ; - ボス生存中はステージクリア不可 (check_clear がゲートする)
 ; - 撃破で2000点 + 連続バースト演出
 
-BOSS_OAM     = 176      ; スプライト 44-59 (4x4 = 16枚)
+BOSS_OAM     = 192      ; スプライト 48-63 (4x4 = 16枚)
 BOSS_GROUND  = 168      ; 接地時の上端 Y (32px なので 168+32=200)
 BOSS_HP_MAX  = 8
 BOSS_SPAWN_X = 920
@@ -183,9 +183,9 @@ update_boss:
     lda boss_state
     cmp #1
     bne @done
-    lda player_y        ; 縦: py+16 > by && py < by+32
+    lda player_y        ; 縦: py+32 > by && py < by+32
     clc
-    adc #16
+    adc #32
     cmp boss_y
     bcc @done
     beq @done
@@ -225,7 +225,7 @@ update_boss:
     bmi @hurt_player    ; 上昇中 → やられ
     lda player_y        ; 踏みつけ: ボス上部 (体の上1/3 まで)
     clc
-    adc #16
+    adc #32
     sec
     sbc boss_y
     cmp #12

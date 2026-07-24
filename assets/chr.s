@@ -17,17 +17,17 @@
     .byte $1A,$02,$02,$02,$62,$64,$70,$70
     .byte $F8,$F0,$F0,$F8,$60,$60,$00,$00
 
-; ---- BG タイル (scratchpad の ground.py で生成) ----
+; ---- BG タイル (悪魔城伝説風: cv_tiles.py で生成) ----
 ; tile $05: grass top (地面の上端: 明緑の草 + 茶の土)
-    .byte $00,$00,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $A5,$FF,$00,$FF,$DF,$FD,$FF,$BF
+    .byte $FF,$EF,$00,$00,$42,$00,$00,$48
+    .byte $FF,$EF,$00,$EF,$AD,$00,$DD,$95
 ; tile $06: dirt (土: 茶ベースに暗色の粒)
-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $FF,$EF,$FE,$7F,$FB,$DF,$FF,$F7
+    .byte $00,$00,$44,$00,$00,$91,$00,$00
+    .byte $00,$EF,$AB,$00,$BD,$2C,$00,$EF
 
 ; tile $07: block (レンガブロック: 茶ベース+暗色の目地)
-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $EE,$EE,$00,$BB,$BB,$00,$EE,$00
+    .byte $FE,$82,$82,$82,$82,$FE,$00,$00
+    .byte $FE,$FC,$FC,$FC,$FC,$80,$00,$DE
 
 ; tile $08: arrow (矢: 右向き。左向きは水平反転で描画)
 ; r3 に鏃の上、r4 にシャフト(肌色)+鏃(黒)、r5 に鏃の下
@@ -62,17 +62,17 @@
 ; ---- 16x16 メタタイル (scratchpad の brick16.py で生成) ----
 ; SMB 風の 16x16 ブロック (輪郭+左上ハイライト+レンガ目地)
 ; tile $50: block16 TL
-    .byte $FF,$9F,$BF,$FF,$FF,$FF,$FF,$FF
-    .byte $00,$7F,$7F,$7F,$40,$7B,$7B,$7B
+    .byte $00,$7F,$40,$40,$40,$40,$40,$40
+    .byte $00,$7F,$7E,$7E,$7E,$7E,$7E,$60
 ; tile $51: block16 TR
-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $00,$DE,$DE,$DE,$02,$FE,$FE,$FE
+    .byte $00,$FE,$02,$02,$02,$02,$02,$02
+    .byte $00,$FE,$FC,$FC,$FC,$FC,$FC,$04
 ; tile $52: block16 BL
-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $40,$7F,$7F,$7F,$40,$7B,$7B,$00
+    .byte $40,$40,$40,$40,$40,$40,$7F,$00
+    .byte $7F,$7F,$7F,$7F,$7F,$7F,$40,$00
 ; tile $53: block16 BR
-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    .byte $02,$DE,$DE,$DE,$02,$FE,$FE,$00
+    .byte $02,$02,$02,$02,$02,$02,$FE,$00
+    .byte $FC,$DC,$DC,$DC,$DC,$DC,$00,$00
 
 ; ---- 決意マン (scratchpad の ketsuiman.py で生成。スプライトパレット1) ----
 ; tile $54: ketsuiman TL
@@ -141,8 +141,17 @@
     .byte $60,$60,$60,$60,$00,$60,$00,$00
     .byte $60,$60,$60,$60,$00,$60,$00,$00
 
-; tile $6A-$7F: 未使用
-    .res 22*16, $00
+; tile $6A-$6D: 遠景の山シルエット (紺)
+    .byte $01,$03,$07,$0F,$1F,$3F,$7F,$FF
+    .byte $00,$00,$00,$00,$00,$00,$00,$00
+    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+    .byte $00,$00,$00,$00,$00,$00,$00,$00
+    .byte $80,$C0,$E0,$F0,$F8,$FC,$FE,$FF
+    .byte $00,$00,$00,$00,$00,$00,$00,$00
+    .byte $10,$38,$7C,$FE,$FF,$FF,$FF,$FF
+    .byte $00,$00,$00,$00,$00,$00,$00,$00
+; tile $6E-$7F: 未使用
+    .res 18*16, $00
 ; tile $80-$BF: ASCII フォント ($20-$5F)
 .include "font.s"
 

@@ -137,6 +137,9 @@ render_column:
     and #1
     sta tmp             ; 0=左半分, 1=右半分
     tya
+    and #31
+    sta tmp3            ; 山プロファイルの位相 (32列で1周)
+    tya
     lsr
     tay
     lda (level_ptr),y   ; 現在ステージのメタ列フィーチャ
@@ -146,8 +149,23 @@ render_column:
 :   sta col_buf,y
     dey
     bpl :-
+    ; ---- 遠景の山シルエット (地形と無関係に常に描く) ----
+    ldx tmp3
+    lda mtn_top_tbl,x   ; 山頂の行 (0=山なし)
+    beq @no_mtn
+    tay
+    lda mtn_peak_tbl,x  ; 頂上は斜面タイル
+    sta col_buf,y
+    lda #$6B            ; 下は紺ベタ
+@mtn_fill:
+    iny
+    cpy #25
+    bcs @no_mtn
+    sta col_buf,y
+    bne @mtn_fill       ; 常に分岐
+@no_mtn:
     lda tmp2
-    cmp #FEAT_PIT       ; 穴: 地面を描かない
+    cmp #FEAT_PIT       ; 穴: 地面を描かない (山は残る)
     bne :+
     rts
 :   lda #TILE_GRASS     ; 地面
@@ -244,6 +262,11 @@ block_bot_tbl: .byte 0, 200, 200, 160, 136  ; 同 下端 Y
 .segment "RODATA"
 block16_top: .byte $50, $51             ; 16x16 ブロックの上段 (左, 右)
 block16_bot: .byte $52, $53             ; 下段 (左, 右)
+; 遠景の山: 32列周期の不規則なプロファイル (山頂の行 19-24, 0=なし)
+mtn_top_tbl:  .byte 23,22,21,21,20,21,22,23,24,24,0,24,23,22,22,21
+              .byte 20,19,20,21,22,23,24,0,0,24,23,23,22,23,24,24
+mtn_peak_tbl: .byte $6A,$6A,$6D,$6B,$6D,$6C,$6C,$6C,$6D,$6B,$00,$6A,$6A,$6A,$6B,$6D
+              .byte $6A,$6D,$6C,$6C,$6C,$6C,$6D,$00,$00,$6A,$6A,$6B,$6D,$6C,$6C,$6B
 
 ; ステージ 1-1〜1-4 のマップと敵スポーン (levelgen.py 生成)
 .include "../assets/levels.s"

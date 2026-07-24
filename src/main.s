@@ -217,7 +217,11 @@ nmi:
     lda scroll_hi
     and #1
     ora #%10000000
-    sta PPUCTRL
+    ldx game_state      ; ゲーム中のスプライトは PT1 (タイトルは PT0)
+    cpx #4
+    beq :+
+    ora #%00001000
+:   sta PPUCTRL
     lda scroll_lo
     sta PPUSCROLL
     lda #$00
@@ -282,6 +286,9 @@ irq:
 
 .segment "CHR"
 .include "../assets/chr.s"
+; PT0 残り ($D0-$FF) をパディングして PT1 = ゲーム用スプライトバンク
+    .res (256-208)*16, $00
+.include "../assets/sprites.s"
 
 .segment "CHRTITLE"
 .include "../assets/title_chr.s"

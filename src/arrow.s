@@ -2,8 +2,8 @@
 ; ワールド座標で飛び、画面外に出たら消える
 
 ; 矢の速度は weapon_level で変わる (arrow_speed_tbl 参照)
-ARROW_TILE  = $08
-ARROW_OAM   = 16        ; OAM バッファ内オフセット (スプライト4,5 = プレイヤーの次)
+ARROW_TILE  = $60
+ARROW_OAM   = 32        ; OAM バッファ内オフセット (スプライト8,9 = プレイヤー8枚の次)
 
 .segment "CODE"
 
@@ -120,9 +120,9 @@ update_arrows:
     adc #0
     sta arrow_xhi,x
 @spawn_y:
-    lda player_y        ; 弓の高さ (手元)
+    lda player_y        ; 弓の高さ (手元 = 胴のあたり)
     clc
-    adc #6
+    adc #10
     sta arrow_y,x
     lda #12             ; 弓を引くポーズを12フレーム表示
     sta attack_timer

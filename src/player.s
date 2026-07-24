@@ -5,7 +5,7 @@
 ;   接地中に足元が空になったら落下開始 (足場から歩いて落ちる)
 
 PLAYER_SPEED    = 2         ; 横移動 px/フレーム
-PLAYER_GROUND_Y = 184       ; 平地での接地 Y (地面ライン = 200)
+PLAYER_GROUND_Y = 168       ; 平地での接地 Y (16x32 なので 168+32=200)
 
 ; スーパーマリオ風可変ジャンプ (SMB の JumpMForceData/FallMForceData 相当)
 JUMP_VEL_HI     = $FC       ; ジャンプ初速 -4.0 px/フレーム (SMB PlayerYSpdData)
@@ -182,8 +182,8 @@ update_player:
     jsr probe_feet      ; 落下中: 足元
     cmp #$FF
     beq @done
-    sec                 ; 着地: y = 面の上端 - 16
-    sbc #16
+    sec                 ; 着地: y = 面の上端 - 32
+    sbc #32
     sta player_y
     lda #0
     sta player_y_sub
@@ -205,13 +205,13 @@ update_player:
     sta vel_y_hi
 @done:
     lda player_y        ; 穴に落ちて画面外へ → 死亡
-    cmp #232
+    cmp #220
     bcc @alive
     jsr player_die_start
 @alive:
     rts
 
-; ---- 横衝突: tmp/tmp2 = 前縁のワールド X。C=1 なら衝突 ----
+; ---- 横衝突: tmp/tmp2 = 前縁のワールド X。C=1 なら衝突 (16x32 の前縁4点) ----
 probe_side:
     lda player_y
     clc
@@ -221,13 +221,19 @@ probe_side:
     bne @hit
     lda player_y
     clc
-    adc #8
+    adc #11
     jsr probe_top
     cmp #$FF
     bne @hit
     lda player_y
     clc
-    adc #15
+    adc #21
+    jsr probe_top
+    cmp #$FF
+    bne @hit
+    lda player_y
+    clc
+    adc #31
     jsr probe_top
     cmp #$FF
     bne @hit
@@ -237,9 +243,9 @@ probe_side:
     sec
     rts
 
-; ---- 足元 (y+16) の面: A = min(top(x+2), top(x+13)) / $FF ----
+; ---- 足元 (y+32) の面: A = min(top(x+2), top(x+13)) / $FF ----
 probe_feet:
-    lda #16
+    lda #32
     bne probe_two       ; 常に分岐
 ; ---- 頭上 (y+0) の面 ----
 probe_head:
@@ -276,8 +282,9 @@ probe_two:
     lda probe_res
 :   rts
 
-; ---- 16x16 メタスプライト (8x8 x4枚) を OAM バッファへ ----
-; ポーズ選択: 上半身 = 通常/攻撃(弓を引く), 下半身 = 立ち/歩き2コマ/ジャンプ
+; ---- 16x32 メタスプライト (8x8 x8枚 = 縦に 16x16 x2) を OAM バッファへ ----
+; PT1 のタイル: 上半身ベース ($00 通常 / $04 攻撃 / $08 ダメージ)
+;               下半身ベース ($0C 立ち / $10+フレーム*4 歩き16F / $50 ジャンプ)
 draw_player:
     lda #0
     sta tmp2            ; 1=死亡ポーズ
@@ -287,11 +294,16 @@ draw_player:
     lda frame_count     ; 死亡演出: 2フレームごとに点滅
     and #2
     beq :+
-    lda #$FF            ; 消えているフレーム
-    sta OAM_BUF
-    sta OAM_BUF+4
-    sta OAM_BUF+8
-    sta OAM_BUF+12
+    ldx #0              ; 消えているフレーム (8枚とも隠す)
+    lda #$FF
+@hideloop:
+    sta OAM_BUF,x
+    inx
+    inx
+    inx
+    inx
+    cpx #32
+    bcc @hideloop
     rts
 :   inc tmp2
 @screen:
@@ -300,102 +312,99 @@ draw_player:
     sbc scroll_lo
     sta player_x
 
-    ; ---- 上半身: 死亡中はダメージ顔 (X目) / 攻撃中は弓を引くポーズ ----
+    ; ---- 上半身ベース選択 ----
     lda tmp2
     beq @chk_attack
-    lda #$60
-    ldx #$61
-    bne @store_top
+    lda #$08            ; ダメージ (X目)
+    bne @set_top
 @chk_attack:
     lda attack_timer
     beq @top_normal
     dec attack_timer
-    lda #$0D
-    ldx #$0E
-    bne @store_top      ; 常に分岐
+    lda #$04            ; 弓を引く
+    bne @set_top
 @top_normal:
-    lda #$01
-    ldx #$02
-@store_top:
-    ldy facing
-    beq :+
-    sta spr_tile_buf+1  ; 左向きは列を入れ替え (描画時に水平反転)
-    stx spr_tile_buf
-    bne @bottom         ; X は常に非0
-:   sta spr_tile_buf
-    stx spr_tile_buf+1
+    lda #$00
+@set_top:
+    sta spr_tile_buf    ; [0] = 上半身ベース
 
-@bottom:
-    ; ---- 下半身: 死亡中=立ち / 空中=ジャンプ / 歩行中=2コマ / 停止=立ち ----
+    ; ---- 下半身ベース選択 ----
     lda tmp2
     bne @stand
     lda on_ground
     bne @grounded
-    lda #$0B            ; ジャンプポーズ
-    ldx #$0C
-    bne @store_bottom
+    lda #$50            ; ジャンプ
+    bne @set_bot
 @grounded:
     lda buttons
     and #BTN_LEFT | BTN_RIGHT
     beq @stand
     inc anim_timer
-    lda anim_timer
-    and #%00001000      ; 8フレームごとに足を切替
-    beq @stand
-    lda #$09            ; 歩きポーズ (足を開く)
-    ldx #$0A
-    bne @store_bottom
+    lda anim_timer      ; 歩き16フレーム (2ゲームフレーム/コマ = 32Fで1周)
+    lsr
+    and #15
+    asl
+    asl
+    clc
+    adc #$10
+    bne @set_bot        ; 常に非0
 @stand:
-    lda #$03
-    ldx #$04
-@store_bottom:
-    ldy facing
-    beq :+
-    sta spr_tile_buf+3
-    stx spr_tile_buf+2
-    bne @emit
-:   sta spr_tile_buf+2
-    stx spr_tile_buf+3
+    lda #$0C
+@set_bot:
+    sta spr_tile_buf+1  ; [1] = 下半身ベース
 
-@emit:
+    ; ---- 8 スプライト描画 ----
     lda facing
     beq :+
-    lda #$40            ; 左向きは水平反転属性
+    lda #$40            ; 左向きは水平反転
 :   sta tmp_attr
-    lda star_timer      ; 無敵中はパレットサイクルで点滅
-    beq @no_star
-    lda frame_count
-    lsr
-    lsr
-    and #3
-    ora tmp_attr
-    sta tmp_attr
-@no_star:
-    ldy #0              ; パーツ番号 0-3
-    ldx #0              ; OAM オフセット
+    ldx #0              ; パーツ 0-7 (行=part/2, 列=part&1)
+    ldy #0              ; OAM オフセット
 @loop:
-    lda player_y
+    txa                 ; Y = player_y + (part>>1)*8
+    and #%11111110
+    asl
+    asl
     clc
-    adc spr_yoff,y
-    sta OAM_BUF,x       ; Y
-    inx
-    lda spr_tile_buf,y
-    sta OAM_BUF,x       ; タイル
-    inx
-    lda tmp_attr
-    sta OAM_BUF,x       ; 属性 (パレット0)
-    inx
-    lda player_x
-    clc
-    adc spr_xoff,y
-    sta OAM_BUF,x       ; X
-    inx
+    adc player_y
+    sta OAM_BUF,y
     iny
-    cpy #4
+    txa                 ; クアドラント = (part&2) | 列' (左向きは列反転)
+    and #1
+    sta tmp
+    lda facing
+    beq :+
+    lda tmp
+    eor #1
+    sta tmp
+:   txa
+    and #2
+    ora tmp
+    sta tmp
+    cpx #4
+    bcs @bot_tile
+    lda spr_tile_buf
+    bcc @add_tile       ; cpx の C クリアを利用
+@bot_tile:
+    lda spr_tile_buf+1
+@add_tile:
+    clc
+    adc tmp
+    sta OAM_BUF,y       ; タイル
+    iny
+    lda tmp_attr
+    sta OAM_BUF,y       ; 属性 (パレット0)
+    iny
+    txa                 ; X = player_x + (part&1)*8
+    and #1
+    asl
+    asl
+    asl
+    clc
+    adc player_x
+    sta OAM_BUF,y
+    iny
+    inx
+    cpx #8
     bne @loop
     rts
-
-.segment "RODATA"
-spr_xoff:    .byte 0, 8, 0, 8
-spr_yoff:    .byte 0, 0, 8, 8
-.segment "CODE"

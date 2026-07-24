@@ -4,7 +4,7 @@
 ; - 地上で接触するとプレイヤーはスタート地点に戻される
 
 ENEMY_Y      = 184      ; 地上歩行 (プレイヤーと同じ接地高)
-ENEMY_OAM    = 24       ; OAM オフセット (スプライト 6-17: 4枚 x 3体)
+ENEMY_OAM    = 40       ; OAM オフセット (スプライト 10-21: 4枚 x 3体)
 ENEMY_ATTR   = %00000001 ; スプライトパレット1
 
 .segment "CODE"
@@ -156,8 +156,8 @@ update_enemies:
     cpy #2
     bne @arrow_chk
     ; --- プレイヤー接触 ---
-    lda player_y        ; 縦: 敵の高さ帯に重なっているか
-    cmp #169
+    lda player_y        ; 縦: 敵の高さ帯に重なっているか (py+32 > 185)
+    cmp #154
     bcc @col_next
     lda world_x_lo      ; 横: (px+13) - ex が 0..26 なら接触
     clc
@@ -337,7 +337,7 @@ draw_enemies:
     beq @fx
     jmp @loop
 @fx:
-    ; ---- ヒットエフェクト (スプライト18 = OAM+72): 小→大の炸裂 ----
+    ; ---- ヒットエフェクト (スプライト22 = OAM+88): 小→大の炸裂 ----
     lda fx_timer
     beq @fx_hide
     lda fx_xlo
@@ -348,7 +348,7 @@ draw_enemies:
     sbc scroll_hi
     bne @fx_hide
     lda fx_y
-    sta OAM_BUF+72
+    sta OAM_BUF+88
     lda fx_timer
     cmp #7
     bcs @fx_small
@@ -357,15 +357,15 @@ draw_enemies:
 @fx_small:
     lda #$5C            ; 前半: 小スパーク
 @fx_tile:
-    sta OAM_BUF+73
+    sta OAM_BUF+89
     lda #ENEMY_ATTR
-    sta OAM_BUF+74
+    sta OAM_BUF+90
     lda tmp
-    sta OAM_BUF+75
+    sta OAM_BUF+91
     rts
 @fx_hide:
     lda #$FF
-    sta OAM_BUF+72
+    sta OAM_BUF+88
     rts
 
 ; スポーン位置はステージ別テーブル stage_enemy_lo/hi (assets/levels.s) を参照

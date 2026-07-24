@@ -2,7 +2,7 @@
 ;   1 = 無敵の星   … 約8.5秒無敵。触れた決意マンが逆に倒れる。プレイヤーは点滅
 ;   2 = パワー矢   … 矢が速くなり (4→6px/f) 敵を貫通する。やられると失う
 
-ITEM_OAM = 76           ; スプライト 19,20
+ITEM_OAM = 92           ; スプライト 23,24
 
 .segment "CODE"
 
@@ -43,9 +43,9 @@ update_items:
 @loop:
     lda item_flag,x
     beq @next
-    lda player_y        ; 縦: py+16 > iy かつ py < iy+8
+    lda player_y        ; 縦: py+32 > iy かつ py < iy+8
     clc
-    adc #16
+    adc #32
     cmp item_y,x
     bcc @next
     beq @next
