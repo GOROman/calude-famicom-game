@@ -112,6 +112,18 @@
     <label>速度: <input type="range" id="fps" min="1" max="30" value="8"> <span id="fpsval">8</span> fps</label>
     <div id="frames"></div>
     <div class="note">「＋現在のタイル」でコマ追加。コマをクリックで削除</div>
+
+    <h2 style="margin-top:16px">キャラアニメプレイヤー (16x32 ポーズ)</h2>
+    <div style="display:flex; gap:12px; align-items:flex-start">
+      <canvas id="poseview" width="16" height="32" style="width:96px; height:192px; border:2px solid #555; background:#000"></canvas>
+      <div>
+        <div class="btnrow" id="posepresets" style="flex-direction:column; align-items:stretch; gap:6px"></div>
+        <label><input type="checkbox" id="poseflip"> 左向き (Hフリップ)</label><br>
+        <label>速度: <input type="range" id="posefps" min="1" max="30" value="8" style="width:90px"> <span id="posefpsval">8</span> fps</label><br>
+        <button class="btn sm" id="poseplay" style="margin-top:6px">▶ 再生</button>
+      </div>
+    </div>
+    <div class="note">走り・ショットなどのポーズ (2列x4行, 縦+16) をコマ送りでチェック。「選択タイル」は現在のタイルをベースに再生</div>
   </div>
 
 </main>
@@ -221,7 +233,7 @@ function drawEditor() {
     `— タイル $${(tile & 255).toString(16).padStart(2,'0').toUpperCase()} (${PAGE_NAMES[page]})`;
 }
 
-function redrawAll() { drawSheet(); drawEditor(); renderFrames(); }
+function redrawAll() { drawSheet(); drawEditor(); renderFrames(); drawPoseView(); }
 
 // ---- ページタブ ----
 function renderPages() {
@@ -485,9 +497,75 @@ $('fps').oninput = () => {
   if (playing) { clearInterval(animTimer); animTimer = setInterval(tickAnim, 1000 / +$('fps').value); }
 };
 
+// ---- キャラアニメプレイヤー (16x32 ポーズ: base + 行*16 + 列, PT1 スプライトバンク) ----
+const SPR_BANK = 256;   // バンク0 PT1 の先頭 (グローバルタイル番号)
+const POSE_ANIMS = [
+  { name:'🏃 走り',        frames:[0x02,0x04,0x06,0x08] },
+  { name:'🏹 ショット(弓)', frames:[0x40,0x42,0x44] },
+  { name:'🦘 ジャンプ',     frames:[0x0A,0x0C,0x0E] },
+  { name:'🧍 立ち',         frames:[0x00] },
+  { name:'📍 選択タイル',   frames:null },  // 現在のタイルをベースに
+];
+const poseview = $('poseview'), pctx2 = poseview.getContext('2d');
+let poseAnim = 0, posePos = 0, posePlaying = false, poseTimer = null;
+
+function drawPose(base) {
+  const pal = PALETTES[palIdx].col;
+  const flip = $('poseflip').checked;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) {
+    pctx2.fillStyle = ((x>>2) + (y>>2)) & 1 ? '#2a2a2a' : '#3a3a3a';
+    pctx2.fillRect(x, y, 1, 1);
+  }
+  for (let row = 0; row < 4; row++) for (let col = 0; col < 2; col++) {
+    const t = base + row*16 + col;
+    if (t >= 1024) continue;
+    const dx = (flip ? 1-col : col) * 8, dy = row * 8;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const v = pget(t, x, y);
+      if (v === 0) continue;
+      pctx2.fillStyle = rgb(pal[v]);
+      pctx2.fillRect(dx + (flip ? 7-x : x), dy + y, 1, 1);
+    }
+  }
+}
+function poseFrames() {
+  const f = POSE_ANIMS[poseAnim].frames;
+  return f ? f.map(b => SPR_BANK + b) : [tile];
+}
+function drawPoseView() { drawPose(poseFrames()[posePos % poseFrames().length]); }
+function tickPose() { posePos = (posePos + 1) % poseFrames().length; drawPoseView(); }
+function startPose() {
+  posePlaying = true;
+  $('poseplay').textContent = '⏸ 停止';
+  clearInterval(poseTimer);
+  poseTimer = setInterval(tickPose, 1000 / +$('posefps').value);
+}
+function stopPose() {
+  posePlaying = false;
+  $('poseplay').textContent = '▶ 再生';
+  clearInterval(poseTimer);
+}
+function renderPosePresets() {
+  const wrap = $('posepresets');
+  wrap.innerHTML = '';
+  POSE_ANIMS.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === poseAnim ? ' on' : '');
+    b.textContent = a.name;
+    b.onclick = () => { poseAnim = i; posePos = 0; renderPosePresets(); drawPoseView(); startPose(); };
+    wrap.appendChild(b);
+  });
+}
+$('poseplay').onclick = () => posePlaying ? stopPose() : startPose();
+$('poseflip').onchange = drawPoseView;
+$('posefps').oninput = () => {
+  $('posefpsval').textContent = $('posefps').value;
+  if (posePlaying) startPose();
+};
+
 // ---- 初期化 ----
 (async () => {
-  renderPages(); renderPals(); redrawAll();
+  renderPages(); renderPals(); renderPosePresets(); redrawAll();
   try {
     romBuf = new Uint8Array(await (await fetch('../../editor/base.nes')).arrayBuffer());
     chrOff = chrOffsetOf(romBuf);
