@@ -571,20 +571,20 @@ sfx_overlay:
     bne :+
     jmp @startse
 :
-    cpx #40             ; ジャンプ: スーパーマリオ方式 (HWスイープ3相, $28F)
+    cpx #26             ; ジャンプ: 低めの上昇スイープ (短い風切り, デューティ25%)
     bcc :+
     lda #$08            ; 終了: スイープ解除
     sta $4001
     jmp @end1
 :   cpx #0
     bne @jp2
-    lda #$82            ; 第1相: duty50 env2 + sweep $A7, 周期 $0FE
+    lda #$44            ; 第1相: duty25 env4 + sweep $A7, 周期 $150 (E4)
     sta SQ1_VOL
     lda #$A7
     sta $4001
-    lda #$FE
+    lda #$50
     sta $4002
-    lda #%00001000
+    lda #%00001001
     sta $4003
     bne @jp_done
 @jp2:
@@ -599,13 +599,13 @@ sfx_overlay:
     lda #$BC            ; 第3相: 上昇スイープの尻上がり
     sta $4001
 @jp_done:
-    lda #$82            ; $4000 は毎フレーム再主張 (BGM のミュート書きに勝つ)
+    lda #$44            ; $4000 は毎フレーム再主張 (BGM のミュート書きに勝つ)
     cpx #3
     bcc :+
-    lda #$5F
+    lda #$58            ; duty25 const vol8
     cpx #8
     bcc :+
-    lda #$48
+    lda #$46            ; 尻すぼみ
 :   sta SQ1_VOL
     inc sfx1_t
     jmp @sq2
@@ -728,16 +728,16 @@ sfx_overlay:
     inc sfx2_t
     jmp @noi
 @coin:
-    cpx #16             ; コイン: B5 → E6 のディン (マリオ風)
+    cpx #16             ; コイン: E6 → A6 のガラス鐘 (Am の主音へ解決)
     bcs @end2
-    ldy #$70            ; B5
-    cpx #4
-    bcc :+
     ldy #$54            ; E6
+    cpx #3
+    bcc :+
+    ldy #$3F            ; A6
 :   sty $4006
     cpx #0
     beq :+
-    cpx #4
+    cpx #3
     bne :++
 :   lda #%11111000
     sta $4007
@@ -747,7 +747,7 @@ sfx_overlay:
     lda #12
     sec
     sbc tmp
-    ora #%10110000      ; デューティ50%
+    ora #%01110000      ; デューティ25% (硬質な鐘の響き)
     sta SQ2_VOL
     inc sfx2_t
     jmp @noi
