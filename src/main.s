@@ -327,6 +327,24 @@ nmi:
     lda #0
     jsr set_chr_bank
 @no_rbank:
+    ; ---- コインのきらめき (BG パレット3 の色3 をサイクル) ----
+    lda game_state
+    cmp #4
+    bcs @no_shine       ; タイトル/エンディング/ラウンドはパレット3を別用途で使用
+    lda frame_count
+    lsr
+    lsr
+    lsr
+    and #3
+    tax
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$0F
+    sta PPUADDR
+    lda coin_shine,x
+    sta PPUDATA
+@no_shine:
     ; ---- 撃破フラッシュ: BG 色を1-2フレーム白く ----
     lda game_state
     cmp #4

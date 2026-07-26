@@ -4,9 +4,9 @@
 
 A **side-scrolling action game for the NES (Famicom)** starring a young **huntress**, built from scratch in 6502 assembly (ca65). Developed step by step together with [Claude Code](https://claude.com/claude-code) (Fable 5).
 
-## ▶ [PLAY IN YOUR BROWSER](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/49-stage-mood.nes)
+## ▶ [PLAY IN YOUR BROWSER](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/50-coin-shine.nes)
 
-*(latest build: roms/49-stage-mood.nes — boots directly in the cluade-famicom-emu WASM emulator)*
+*(latest build: roms/50-coin-shine.nes — boots directly in the cluade-famicom-emu WASM emulator)*
 
 **🛠 [Stage Editor](https://goroman.github.io/calude-famicom-game/editor/)** — edit stages in the browser. The URL *is* the save data, and you can export a modified .nes and play it right away
 

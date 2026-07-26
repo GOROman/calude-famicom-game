@@ -34,6 +34,18 @@ ppu_init:
     sta PPUDATA
     lda stage_bg_pal+2,x
     sta PPUDATA
+    ; パレット3 = コインきらめき用 (色1,2 はパレット0と同じに保つ)
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$0D
+    sta PPUADDR
+    lda stage_bg_pal,x
+    sta PPUDATA
+    lda stage_bg_pal+1,x
+    sta PPUDATA
+    lda #$37            ; コイン本体 (NMI がサイクル)
+    sta PPUDATA
 
     ; ネームテーブル2面 + 属性テーブルをタイル0でクリア ($2000-$27FF)
     bit PPUSTATUS
@@ -53,6 +65,8 @@ ppu_init:
     rts                 ; 地面/ブロックは level_init の列描画が担当
 
 .segment "RODATA"
+coin_shine:             ; コインのきらめきサイクル (8Fごと)
+    .byte $37,$30,$27,$30
 stage_bg_pal:           ; ステージ別 BG パレット0 (山影, レンガ, アクセント)
     .byte $01,$16,$37   ; 1-1 蒼の夜 (紺)
     .byte $04,$16,$37   ; 1-2 宵の紫

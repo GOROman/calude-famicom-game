@@ -37,6 +37,66 @@ level_init:
     sbc init_col
     cmp #64
     bne @loop
+    ; ---- コインの属性クアドラントをパレット3に (NMI がきらめかせる) ----
+    lda #0              ; +1 インクリメントモードへ戻す (描画オフのまま)
+    sta PPUCTRL
+    ldx #15             ; col_buf[0..15] = 属性行5のシャドウ (NT0 8B + NT1 8B)
+    lda #0
+:   sta col_buf,x
+    dex
+    bpl :-
+    ldy #0              ; メタ列 0-63
+@coin_attr:
+    tya
+    pha
+    jsr coin_at
+    bcc @ca_next
+    pla
+    pha
+    asl
+    ora #1              ; A = コインのタイル列 (メタ列*2+1)
+    and #63             ; 2画面リング内の列
+    tax
+    and #2              ; 横クアドラント
+    bne :+
+    lda #%00110000      ; 左下クアドラント = パレット3
+    bne :++
+:   lda #%11000000      ; 右下クアドラント = パレット3
+:   sta tmp
+    txa
+    lsr
+    lsr                 ; 属性シャドウのインデックス (0-15)
+    tax
+    lda col_buf,x
+    ora tmp
+    sta col_buf,x
+@ca_next:
+    pla
+    tay
+    iny
+    cpy #64
+    bne @coin_attr
+    bit PPUSTATUS       ; 属性行5 (タイル行20-23) へ書き込み
+    lda #$23
+    sta PPUADDR
+    lda #$E8            ; NT0: $23C0 + 5*8
+    sta PPUADDR
+    ldx #0
+:   lda col_buf,x
+    sta PPUDATA
+    inx
+    cpx #8
+    bne :-
+    bit PPUSTATUS
+    lda #$27
+    sta PPUADDR
+    lda #$E8            ; NT1: $27C0 + 5*8
+    sta PPUADDR
+:   lda col_buf,x
+    sta PPUDATA
+    inx
+    cpx #16
+    bne :-
     lda #0
     sta PPUCTRL
     rts
