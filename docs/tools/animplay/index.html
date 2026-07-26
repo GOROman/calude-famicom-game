@@ -69,7 +69,7 @@
       <button class="btn sm" id="share">🔗 URLに保存</button>
     </div>
     <div id="status"></div>
-    <div class="note">元動画: grok 生成の少女狩人。先頭32コマから偶数コマだけ間引いた 15 コマ (実質12fps相当, 368x800)。<br>
+    <div class="note">元動画: grok 生成の少女狩人。先頭32コマから偶数コマだけ間引き、冒頭2コマを除いた 13 コマ (実質12fps相当, 368x800)。<br>
       素材 PNG は <a href="frames/f007.png">frames/fNNN.png</a></div>
   </div>
 
@@ -86,7 +86,7 @@
 </main>
 <script>
 'use strict';
-const N = 15;
+const N = 13;
 const $ = id => document.getElementById(id);
 const imgs = [];
 let sel = new Array(N).fill(true);
