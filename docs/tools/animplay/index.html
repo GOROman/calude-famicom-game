@@ -52,8 +52,15 @@
 <main>
 
   <div class="panel">
-    <h2>プレビュー</h2>
-    <canvas id="view" class="black" width="368" height="800" style="width:276px; height:600px"></canvas>
+    <h2>プレビュー / ファミコンスプライト</h2>
+    <div style="display:flex; gap:14px; align-items:flex-start">
+      <canvas id="view" class="black" width="368" height="800" style="width:276px; height:600px"></canvas>
+      <div>
+        <canvas id="nesview" width="16" height="32" style="width:128px; height:256px; border:2px solid #555;
+          image-rendering:pixelated; background:repeating-conic-gradient(#2a2a2a 0% 25%, #3a3a3a 0% 50%) 0 0 / 16px 16px"></canvas>
+        <div class="note">16x32 / 3色<br>+ 透明</div>
+      </div>
+    </div>
     <div class="btnrow">
       <button class="btn" id="play">▶ 再生</button>
       <label>速度 <input type="range" id="fps" min="1" max="30" value="12"> <span id="fpsval">12</span> fps</label>
@@ -74,9 +81,7 @@
   </div>
 
   <div class="panel">
-    <h2>ファミコンスプライト変換 (16x32)</h2>
-    <canvas id="nesview" width="16" height="32" style="width:96px; height:192px; border:2px solid #555;
-      image-rendering:pixelated; background:repeating-conic-gradient(#2a2a2a 0% 25%, #3a3a3a 0% 50%) 0 0 / 12px 12px"></canvas>
+    <h2>ファミコンスプライト書き出し</h2>
     <div class="btnrow">
       <label>パレット
         <select id="nespal">
