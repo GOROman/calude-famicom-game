@@ -1,139 +1,80 @@
-# 狩人行動 (Calude Kodo)
+# Calude Kodo (狩人行動)
 
-**狩人 (かりゅーど) の少女**が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
+**English** | [日本語](README.ja.md)
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/49-stage-mood.nes)** (最新版: roms/49-stage-mood.nes)
+A **side-scrolling action game for the NES (Famicom)** starring a young **huntress**, built from scratch in 6502 assembly (ca65). Developed step by step together with [Claude Code](https://claude.com/claude-code) (Fable 5).
 
-**🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
+## ▶ [PLAY IN YOUR BROWSER](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/49-stage-mood.nes)
 
-**🎨 [PNG→CGROM 変換ツール](https://goroman.github.io/calude-famicom-game/tools/png2chr/)** — 画像を NES の CHR データ (.byte / .chr) と 4色パレットに変換
+*(latest build: roms/49-stage-mood.nes — boots directly in the cluade-famicom-emu WASM emulator)*
 
-**🖌 [CHR-ROM エディタ](https://goroman.github.io/calude-famicom-game/tools/chredit/)** — ROM のタイルグラフィックをブラウザでドット編集。1〜4キー+スペースのキーボード操作、UNDO、アニメーションチェック付き。改造 .nes を書き出してそのまま遊べます
+**🛠 [Stage Editor](https://goroman.github.io/calude-famicom-game/editor/)** — edit stages in the browser. The URL *is* the save data, and you can export a modified .nes and play it right away
 
-**👁 [目パチエディタ](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — タイトル画面の目パチ (閉じ目/半目/白目) をドット単位で編集、実機同様のプレビュー付き。JSON を `tools/apply_blink.py` でアセットに反映
+**🎨 [PNG → CHR Converter](https://goroman.github.io/calude-famicom-game/tools/png2chr/)** — convert images into NES CHR data (.byte / .chr) with 4-color palettes
 
-動作確認には自作 WASM エミュレータ [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu) を使用。
+**🖌 [CHR-ROM Editor](https://goroman.github.io/calude-famicom-game/tools/chredit/)** — pixel-edit the ROM's tile graphics in the browser. Keyboard-driven (1–4 keys + space), with undo, save/load, and an animation checker. Export a modified .nes and play it
 
-![タイトル画面](docs/title_screen.png)
+**👁 [Blink Editor](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — pixel-edit the title screen's eye-blink frames with a hardware-accurate preview. Apply the JSON to the assets with `tools/apply_blink.py`
 
-![スクリーンショット: ジャンプ中のカリュード](docs/screenshot.png)
+Verification is done on the homemade WASM emulator [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu). (The spellings *calude* / *cluade* are intentional.)
 
-![ボス戦](docs/boss_fight.png)
+![Title screen](docs/title_screen.png)
 
-## ストーリー
+![Screenshot: Kalyudo mid-jump](docs/screenshot.png)
 
-世界は「**決意マン**」に支配されてしまった。決意マンは決意する。「明日から本気を出す」「今度こそやる」「絶対にやり遂げる」——だが、決意だけして何も行動しない。
+![Boss fight](docs/boss_fight.png)
 
-狩人カリュードは今日も行く。武器は弓ではない。「**行動**」だ。決意だけの者たちを、実際に動くことで打ち倒していく——狩人行動 (Calude Kodo)、それは行動する者の物語。
+## Story
 
-## 必要環境
+The world has been conquered by the **Ketsui-Man** ("Resolve Man"). Ketsui-Man resolves. "I'll get serious tomorrow." "This time I'll really do it." "I will absolutely see it through." — He resolves, and then does nothing.
 
-- macOS (他OSでも cc65 と make があれば可)
-- [cc65](https://cc65.github.io/) ツールチェーン (ca65 / ld65)
+The huntress **Kalyudo** sets out again today. Her weapon is not the bow. It is **action**. She takes down those who only resolve, by actually moving — *Calude Kodo* ("Hunter Action"), a tale of those who act.
+
+## Requirements
+
+- macOS (any OS with cc65 and make works)
+- The [cc65](https://cc65.github.io/) toolchain (ca65 / ld65)
 
 ```sh
 brew install cc65
 ```
 
-## ビルド
+## Build
 
 ```sh
-make          # game.nes を生成 (iNES形式, Mapper 3 / CNROM, CHR 16KB)
-make run      # cluade-famicom-emu をローカル配信してブラウザで開く
+make          # builds game.nes (iNES format, Mapper 3 / CNROM, 16KB CHR)
+make run      # serves cluade-famicom-emu locally and opens it in a browser
 make clean
 ```
 
-`make run` 後、ブラウザの「ROMを開く」から `game.nes` を読み込むと起動します。
-([Web版エミュレータ](https://goroman.github.io/cluade-famicom-emu/) に直接読み込んでもOK)
+After `make run`, load `game.nes` via "Open ROM" in the browser.
+(You can also load it directly into the [web emulator](https://goroman.github.io/cluade-famicom-emu/).)
 
-## 操作方法
+## Controls
 
-| 操作 | NES | キーボード (cluade-famicom-emu) |
+| Action | NES | Keyboard (cluade-famicom-emu) |
 |------|-----|------|
-| 左右移動 | 十字キー ←→ | 矢印キー ←→ |
-| ジャンプ (押す長さで高さが変化) | A | X |
-| 弓矢 (画面内に2発まで) | B | Z |
+| Move left / right | D-pad ← → | Arrow keys ← → |
+| Jump (height varies with press length) | A | X |
+| Bow (up to 2 arrows on screen) | B | Z |
+| Pause | START | Enter |
 
-## 構成
+## Tech Notes (highlights)
 
-```
-├── Makefile           # ca65/ld65 ビルド
-├── nes.cfg            # ld65 リンカ設定 (PRG 32KB + CHR 8KB)
-├── src/
-│   ├── main.s         # エントリ・リセット処理・メインループ・NMI
-│   ├── header.s       # iNES ヘッダ
-│   ├── ppu.s          # PPU 初期化・画面クリア・パレット
-│   ├── controller.s   # コントローラ読み取り
-│   ├── player.s       # プレイヤー移動・ジャンプ物理・メタスプライト描画
-│   ├── level.s        # レベルデータ・カメラ・列ストリーミング
-│   ├── arrow.s        # 弓矢 (発射・飛翔・ブロック/敵への命中)
-│   └── enemy.s        # 決意マン (パトロール・踏みつけ・接触判定)
-├── assets/
-│   └── chr.s          # CHR パターンデータ (.byte 直書き)
-└── roms/              # 歴代バージョンの ROM アーカイブ
-```
+- **Game loop**: input → update → shadow OAM ($0200) in the main loop; OAM DMA in the NMI (vblank)
+- **Jump physics**: SMB-style variable jump — 8.8 fixed-point Y velocity, weak gravity while A is held on the way up, strong gravity after release
+- **Player**: 16x32 metasprite (8 hardware sprites), pose-based tile layout arranged as a visual grid in CHR (vertical neighbor = +16) so it can be edited as-is in the CHR-ROM editor
+- **Scrolling**: two vertically-mirrored nametables used as a ring, SMB-style column streaming (one 30-tile column uploaded per NMI)
+- **Title screen**: full-screen illustration using **CNROM (mapper 3) bank switching** plus a **sprite-0-hit raster split** (PT0→PT1) to break the 256-tile limit; the round screen reuses the same trick to show the title face on its bottom half via a mid-frame CHR bank switch
+- **Checkpoint**: a mid-stage flag saves the respawn point (the only meta-column that has ground in all four stages)
+- **Stages**: 1-1 to 1-4, each with its own palette mood (blue night → dusk purple → deep teal → showdown crimson) and an accelerating BGM tempo (8/7/7/6 frames per step)
+- **Sound**: homemade TR-808-style driver — DPCM kick/snare synthesized in Python, noise hi-hat with software envelopes, TB-303-style triangle bass with portamento and vibrato; two songs plus SFX overlaid onto the BGM registers every frame
 
-## 技術メモ
+See the [Japanese README](README.ja.md) for the full technical notes and roadmap.
 
-- **ゲームループ**: メインループで入力→更新→シャドウOAM ($0200) 書き込み → NMI (vblank) で OAM DMA 転送
-- **ジャンプ物理**: スーパーマリオ風の可変ジャンプ (A の押下時間で高さが変わる)。Y 速度は 8.8 固定小数点、初速 -4.0 px/f。上昇中に A 押下中は弱い重力 ($20)、A 解放後や下降中は強い重力 ($70)、落下速度上限 4 px/f — SMB の JumpMForceData / FallMForceData / ImposeGravity と同じ方式。長押しで約62px、タップで約25px
-- **プレイヤー**: 16x16 メタスプライト (8x8 x4枚)。左右反転は水平フリップ属性+タイル列入れ替え。上半身 (通常/弓を引く) と下半身 (立ち/歩き2コマ/ジャンプ) を独立に切り替えるポーズ合成方式で、歩きながらの攻撃ポーズも表現
-- **横スクロール**: 垂直ミラーリングの2画面をリングとして使用。プレイヤーは16bitワールド座標で動き、カメラは画面中央 (x=120) に追従、[0, 768] でクランプ。8px境界を越えるたびに画面外の1列 (縦30タイル) を NMI 中に PPU へ縦書き転送する列ストリーミング (SMB 方式)
-- **レベル**: 128列 (4画面分) を列単位のフィーチャコード (平地/柱/浮きブロック) で圧縮した `level_map` から生成
-- **弓矢**: B の立ち上がりエッジで発射、ワールド座標で 4 px/f 飛翔。ブロックか敵に当たるか画面外に出ると消える (同時2発)
-- **決意マン**: 地上を 0.5 px/f でパトロールし、ブロックや世界の端で折り返す。矢が当たるか上から踏むと倒せる (踏むとプレイヤーはバウンド)。地上で接触するとスタート地点に戻される。倒すとダメージ顔 (X目) → 点滅消失のアニメ後、アイテムをドロップ
-- **アイテム**: 決意マンを倒すと出現。**無敵の星** = 約8.5秒無敵 (パレットサイクルで点滅、触れた敵が逆に倒れる) / **パワー矢** = 矢が 6px/f + 敵を貫通 (やられると失う)
-- **クリアと残機**: 一番右 (x=1008) 到達で STAGE CLEAR! → 次のステージ。残機3機、死ぬと X 目で点滅する死亡演出 → リスポーン。0機で GAMEOVER → タイトルへ。穴 (フィーチャ5) に落ちても死ぬ
-- **タイトル画面**: ドット絵イラストをフルスクリーン表示。**CNROM (マッパー3) で CHR を 16KB に拡張**し、タイトル専用バンクに512タイルを格納。**スプライト0ヒットで画面を上下スプリット**し、パターンテーブルを PT0→PT1 に切り替えて 256 タイル制限を突破。変換は自作コンバータ (12色量子化 → 4パレットのロイド式最適化 → 文字保護つきタイルマージ)。メニュー (START/CONTINUE/OPTION) はカーソルスプライトで選択、CONTINUE は前回のステージから
-- **ミス時の演出**: BGM が止まり、ミスのジングルだけが鳴る。タイトル BGM はフェードイン (音量キャップ 0→15、ベースは中盤・ドラムは後半から入る段階的エントリー)
-- **ボス決意マン**: 1-4 の最深部 (柱の門の先のアリーナ) に鎮座する 32x32 の大決意マン。HP8、プレイヤーへ跳びかかる。矢=1 / 踏みつけ=2 ダメージ (被弾後20Fの無敵フラッシュ)。生存中はクリア不可。撃破 2000点
-- **エンディング**: 1-4 クリア (=ボス撃破後) で CONGRATULATIONS! 画面へ。START でタイトルに戻る。タイトルメニューの CONTINUE は前回のステージから再開
-- **スコア**: 矢100 / 踏みつけ200 / アイテム500 / クリア1000点。HUD 中央上に6桁表示、GAME OVER でリセット (周回では持ち越し)
-- **フォント**: ASCII $20-$5F の64文字 (A-Z 0-9 記号) を CGROM タイル $80-$BF に収録 (タイル = $80 + ASCII - $20)。GAMEOVER 表示や HUD の数字に使用
-- **サウンド**: TR-808 風の自作音源ドライバ ([試聴: docs/bgm_sample.wav](docs/bgm_sample.wav))。キック/スネアは Python で合成した波形を DPCM (1bit デルタ変調) にして ROM の $C000 に格納し DMC で再生。ハイハットはノイズ+ソフトウェアエンベロープ。**2曲構成**: タイトル曲 = Am→F→C→G のコード進行 + **SQ2 デチューンユニゾン (DQ2 風の広がり, [試聴](docs/bgm_title.wav))** / ゲーム曲 = Am グルーヴ + 2ステップ遅れの SQ2 エコー。ベースは三角波の **TB-303 風** — ノート間を 64/F でスライドするポルタメントと、鳴り始めだけ深い (±6→±2) ビブラートでレゾナンスのうねりを再現
-- **SFX**: ジャンプ (上昇スイープ)・ショット (下降ザップ)・ミス (下降3音)・敵ヒット (ノイズバースト)・撃破 (上昇アルペジオ)・クリアファンファーレ。BGM のレジスタに毎フレーム上書きするオーバーレイ方式
-- **ステージ**: 1-1〜1-4 の4面 (クリアで次へ、1-4 の次は周回)。HUD 右上にステージ番号。死亡リスポーンはステージ再構築 (ネームテーブル再描画) — 背景と判定のズレを防ぐ
+## Dev Diary
 
-## ロードマップ
-
-- [x] **Step 1**: 画面クリア + スプライト表示、左右移動とジャンプ
-- [x] **Step 2**: 背景 (地面・ブロック) と横スクロール
-- [x] **Step 3**: 地形との当たり判定
-- [x] **Step 4**: 敵キャラクター「決意マン」と接触判定
-- [x] **Step 4.5**: アイテム・ステージクリア・残機3機とゲームオーバー・穴 (落ちると死ぬ)
-- [x] **Step 5**: サウンド — TR-808 風音源ドライバ + SFX 6種 + コード進行 BGM
-- [x] **Step 6**: ステージ 1-1〜1-4、STAGE CLEAR!、タイトル画面 — **ロードマップ完走!**
-- [x] **Step 7**: ボス決意マン (1-4) とエンディング、スコア、イラストタイトル画面
-
-### この先の 6 STEP
-
-- [x] **Step 8: 敵バリエーション** — コウモリ (サイン波飛行)・ホッパー (放物線ジャンプ)・パタパタ (上下往復の足場) を追加。決意マンにも個性がある
-- [x] **Step 9: チェックポイントと 1UP** — ステージ中間の旗で復活位置を保存。1UP アイテムとスコア 10000 点ごとのエクステンド (専用ジングル付き)
-- [x] **Step 10: ステージの表情** — 面ごとに BG パレットを切替 (蒼の夜 → 宵の紫 → 月下の深青緑 → 決戦の紅)、BGM のテンポも面ごとに上がる (8/7/7/6 F/ステップ)。ポーズ機能 (START) も追加
-- [ ] **Step 11: 記録が残る** — バッテリーバックアップ (SRAM) でハイスコア保存。タイトルの OPTION を実装してタイムアタックモード (クリアタイムをフレーム精度表示) を選択可能に
-- [ ] **Step 12: 制作パイプライン統合** — ステージエディタから改造 ROM をワンクリックでエミュレータ起動。png2chr の出力を Makefile で直接取り込み、画像を置くだけでキャラが差し替わるビルドに
-- [ ] **Step 13: カセットへ** — Everdrive 等での実機動作検証、PAL 対応 (タイミング定数切替)。最終目標は本物のカセットで動く「狩人行動」
-
-## 開発日誌
-
-Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md) に置いています。
-
-- [Step 1: 空が青くなった日](docs/diary/step1.md)
-- [Step 2: 世界は横に長い](docs/diary/step2.md)
-- [Step 3: ブロックの上に立つということ](docs/diary/step3.md)
-- [番外編: URLがカセットになる日 (ステージエディタ)](docs/diary/editor.md)
-- [Step 4: 決意マン、行動に倒れる](docs/diary/step4.md)
-- [終わりがあるからゲームになる (クリア・残機・穴・GAME OVER)](docs/diary/clear-lives.md)
-- [Step 5: ROMの中の TR-808](docs/diary/step5.md)
-- [Step 6: 4つのステージと6つの効果音](docs/diary/step6.md)
-- [磨きの日 (スコア・2曲構成・デチューン)](docs/diary/polish.md)
-- [512枚のタイル (イラストのタイトル画面化)](docs/diary/image-title.md)
-- [決意の門 (ボスとエンディング)](docs/diary/boss.md)
-- [番外編: ドットを打つ道具を、ドットのゲームに添える (CHR-ROMエディタ)](docs/diary/chredit.md)
-- [番外編: 設定画の彼女が、16ドットに宿る (主人公打ち直し)](docs/diary/redraw.md)
-- [番外編: ラウンド画面に、あの顔を (バンク切替スプリット)](docs/diary/round-face.md)
-- [Step 9: 旗はふたつめの家 (チェックポイントと1UP)](docs/diary/checkpoint.md)
-- [Step 10: 夜の色は一つではない (ステージの表情とポーズ)](docs/diary/stagemood.md)
+Essay-style development diaries (in Japanese) live in [docs/diary/](docs/diary/README.md), covering every step from "the day the sky turned blue" to raster splits, sprite sheets, and checkpoint flags.
 
 ## License
 
