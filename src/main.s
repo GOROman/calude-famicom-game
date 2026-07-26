@@ -129,6 +129,7 @@ sfxn_type:    .res 1    ; ノイズ SFX 種類 (1=ショット 2-5=ヒット段�
 checkpoint:   .res 1    ; 中間フラグ通過 (1=リスポーンは旗から)
 extend_cnt:   .res 1    ; エクステンド済みの1万点カウント
 init_col:     .res 1    ; level_init の開始列 (0 or 50=チェックポイント)
+paused:       .res 1    ; 1=ポーズ中 (START でトグル)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)
@@ -209,7 +210,20 @@ main_loop:
     bcs @finish
     jmp @draw
 @playing:
-    lda hitstop         ; 撃破ヒットストップ: 数フレーム世界を止める
+    lda buttons         ; START でポーズ切替
+    and #BTN_START
+    beq :+
+    lda prev_buttons
+    and #BTN_START
+    bne :+
+    lda paused
+    eor #1
+    sta paused
+    jsr pause_toggled   ; PAUSE 表示と SE
+:   lda paused
+    beq :+
+    jmp @finish         ; ポーズ中は更新も描画もしない (OAM は保持)
+:   lda hitstop         ; 撃破ヒットストップ: 数フレーム世界を止める
     beq :+
     dec hitstop
     jmp @draw

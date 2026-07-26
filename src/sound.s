@@ -121,7 +121,17 @@ sfx_start:
 
 ; ================= メイン更新 (毎フレーム) =================
 update_sound:
-    lda game_state
+    lda paused          ; ポーズ中: BGM ミュート (ポーズSEだけ通す)
+    beq :+
+    lda #$80
+    sta TRI_LIN
+    lda #$30
+    sta NOI_VOL
+    lda #%10110000
+    sta SQ1_VOL
+    sta SQ2_VOL
+    jmp sfx_overlay
+:   lda game_state
     cmp #1
     bne @not_fanfare
     jmp fanfare_update  ; クリア中はファンファーレ専用
@@ -303,10 +313,16 @@ update_sound:
     lda #%10110000
     sta SQ2_VOL
 @no_step:
-    ; ---- ステップ/小節カウンタ ----
+    ; ---- ステップ/小節カウンタ (ゲーム中はステージが進むほど速い) ----
     inc snd_tick
-    lda snd_tick
-    cmp #8
+    ldx #4              ; stage_tempo[4] = 8 (タイトル/その他)
+    lda game_state
+    beq :+
+    cmp #6              ; ラウンド画面もステージテンポで
+    bne :++
+:   ldx current_stage
+:   lda snd_tick
+    cmp stage_tempo,x
     bcc @envelopes
     lda #0
     sta snd_tick
@@ -944,6 +960,7 @@ vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
 vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
 mel_vib:  .byte 0,1,0,$FF           ; リードの遅れビブラート (±1)
 start_arp: .byte 10,11,12,10
+stage_tempo: .byte 8,7,7,6,8   ; ステージ別 フレーム/ステップ (末尾=タイトル用)
 arp_1up:   .byte $A9,$8D,$54,$6A,$5E,$46  ; E5 G5 E6 C6 D6 G6 の周期下位        ; 高速アルペジオ C5 E5 G5 C5
 noi_freq:  .byte 0,$04,$06,$07,$08,$0A,$0C  ; [type] ノイズ周期
 noi_len:   .byte 0,6,8,9,10,12,26           ; [type] 長さ

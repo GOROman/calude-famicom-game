@@ -76,6 +76,7 @@ start_stage:
     sta iblink_t
     lda #0
     sta iblink_go
+    sta paused
     jsr draw_round
     jsr draw_round_bg   ; 顔 + セリフ (BG, レンダリング停止中に書く)
     lda #%10000000      ; NMI 再開
@@ -389,6 +390,47 @@ draw_round:
     lda #132
     sta OAM_BUF,y
     jmp round_eyes_open ; 白目を出して rts
+
+; ---- ポーズ切替時の表示と SE (main ループから) ----
+pause_toggled:
+    jsr sfx_coin        ; ポーズ音 (鐘)
+    lda paused
+    beq @off
+    ldy #TEXT_OAM       ; "PAUSE" を中央に表示
+    ldx #0
+@put:
+    lda pause_txt,x
+    beq @done
+    sta OAM_BUF+1,y
+    lda #112
+    sta OAM_BUF,y
+    lda #0
+    sta OAM_BUF+2,y
+    txa
+    asl
+    asl
+    asl
+    clc
+    adc #108
+    sta OAM_BUF+3,y
+    iny
+    iny
+    iny
+    iny
+    inx
+    bne @put
+@off:
+    ldx #TEXT_OAM       ; 解除: テキスト枠を消す
+    lda #$FF
+:   sta OAM_BUF,x
+    inx
+    inx
+    inx
+    inx
+    cpx #(TEXT_OAM+48)
+    bne :-
+@done:
+    rts
 
 ; ---- CNROM の CHR バンク切替 (バス競合回避のためテーブル自身へ書く) ----
 set_chr_bank:           ; A = バンク (0=ゲーム 1=タイトル)

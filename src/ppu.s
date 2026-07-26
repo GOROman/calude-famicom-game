@@ -16,6 +16,24 @@ ppu_init:
     inx
     cpx #32
     bne @pal
+    ; ステージごとの空気: BG パレット0 の3色を差し替え (蒼→紫→深青緑→紅)
+    lda current_stage
+    and #3
+    sta tmp
+    asl
+    adc tmp             ; *3
+    tax
+    bit PPUSTATUS
+    lda #$3F
+    sta PPUADDR
+    lda #$01
+    sta PPUADDR
+    lda stage_bg_pal,x
+    sta PPUDATA
+    lda stage_bg_pal+1,x
+    sta PPUDATA
+    lda stage_bg_pal+2,x
+    sta PPUDATA
 
     ; ネームテーブル2面 + 属性テーブルをタイル0でクリア ($2000-$27FF)
     bit PPUSTATUS
@@ -35,6 +53,11 @@ ppu_init:
     rts                 ; 地面/ブロックは level_init の列描画が担当
 
 .segment "RODATA"
+stage_bg_pal:           ; ステージ別 BG パレット0 (山影, レンガ, アクセント)
+    .byte $01,$16,$37   ; 1-1 蒼の夜 (紺)
+    .byte $04,$16,$37   ; 1-2 宵の紫
+    .byte $0C,$07,$37   ; 1-3 月下の深青緑 + 黒レンガ
+    .byte $05,$16,$37   ; 1-4 決戦の紅
 palette_data:
     ; BG パレット (悪魔城伝説風: 黒空, 紺の山影, くすんだ赤レンガ, 骨色)
     ; パレット1 はラウンド画面の顔/セリフ用 (肌, 茶, 焦げ茶)
