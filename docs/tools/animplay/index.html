@@ -58,7 +58,7 @@
       <div>
         <canvas id="nesview" width="16" height="32" style="width:128px; height:256px; border:2px solid #555;
           image-rendering:pixelated; background:repeating-conic-gradient(#2a2a2a 0% 25%, #3a3a3a 0% 50%) 0 0 / 16px 16px"></canvas>
-        <div class="note">16x32 / 3色<br>+ 透明</div>
+        <div class="note">16x32 / 4色<br>(色0=$0F は実機<br>スプライトでは透明)</div>
       </div>
     </div>
     <div class="btnrow">
@@ -226,12 +226,14 @@ const nesview = $('nesview'), nctx = nesview.getContext('2d');
 const nesCache = {};      // frame index -> 16x32 の色番号配列
 
 function classifyPixel(r, g, b) {
+  // 戻り値 1-4 = パレットの色0-3 (0 は透明)
   const hi = Math.max(r,g,b), lo = Math.min(r,g,b);
-  if (b > r + 20 && b > 80) return 1;            // 青 (スカーフ) → 色1
-  if (lo > 170 && hi - lo < 45) return 3;        // 白 → 色3
-  if (r > 190 && g > 140 && b > 110) return 3;   // 肌 → 色3
-  if (r > 140 && g < 130 && b > 60) return 2;    // ピンク/赤 → 色2
-  return 1;                                      // 髪/輪郭 → 色1
+  if (hi < 70) return 1;                         // 黒 (輪郭/目) → 色0 ($0F)
+  if (b > r + 20 && b > 80) return 2;            // 青 (スカーフ) → 色1
+  if (lo > 170 && hi - lo < 45) return 4;        // 白 → 色3
+  if (r > 190 && g > 140 && b > 110) return 4;   // 肌 → 色3
+  if (r > 140 && g < 130 && b > 60) return 3;    // ピンク/赤 → 色2
+  return 2;                                      // 髪 → 色1
 }
 function convertFrame(i) {
   if (nesCache[i]) return nesCache[i];
@@ -291,7 +293,7 @@ function convertFrame(i) {
         const bx = Math.max(sx0 + Math.floor((tx+1) * (sx1-sx0) / dw), ax + 1);
         const ay = sy0 + Math.floor(ty * (sy1-sy0) / dh);
         const by = Math.max(sy0 + Math.floor((ty+1) * (sy1-sy0) / dh), ay + 1);
-        const cnt = [0,0,0,0]; let total = 0;
+        const cnt = [0,0,0,0,0]; let total = 0;
         for (let yy = ay; yy < by; yy++) for (let xx = ax; xx < bx; xx++) {
           if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
           total++;
@@ -302,8 +304,9 @@ function convertFrame(i) {
         }
         const solid = total - cnt[0];
         if (!total || solid < total * 0.32) continue;
-        const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*(skinBoost || 1.15)];
-        let best = 1; if (w[2] > w[best]) best = 2; if (w[3] > w[best]) best = 3;
+        const w = [0, cnt[1]*1.1, cnt[2], cnt[3]*1.15, cnt[4]*(skinBoost || 1.15)];
+        let best = 1;
+        for (let k = 2; k <= 4; k++) if (w[k] > w[best]) best = k;
         grid[dy0 + ty][tx] = best;
       }
     }
@@ -324,7 +327,7 @@ function drawNes(i) {
   for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) {
     const v = g[y][x];
     if (!v) continue;
-    const [r, gg, b] = NES_RGB[pal[v]];
+    const [r, gg, b] = NES_RGB[pal[v - 1]];   // v=1..4 → 色0..3
     nctx.fillStyle = `rgb(${r},${gg},${b})`;
     nctx.fillRect(x, y, 1, 1);
   }
@@ -338,7 +341,7 @@ function poseTiles(g) {   // 16x32 グリッド → 8タイル (r0c0,r0c1,r1c0,.
     for (let y = 0; y < 8; y++) {
       let b0 = 0, b1 = 0;
       for (let x = 0; x < 8; x++) {
-        const v = g[r*8+y][c*8+x];
+        const v = Math.max(0, g[r*8+y][c*8+x] - 1);  // 1..4 → CHR値 0..3
         b0 = (b0 << 1) | (v & 1);
         b1 = (b1 << 1) | (v >> 1);
       }
