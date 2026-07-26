@@ -73,6 +73,28 @@
       素材 PNG は <a href="frames/f007.png">frames/fNNN.png</a></div>
   </div>
 
+  <div class="panel">
+    <h2>ファミコンスプライト変換 (16x32)</h2>
+    <canvas id="nesview" width="16" height="32" style="width:96px; height:192px; border:2px solid #555;
+      image-rendering:pixelated; background:repeating-conic-gradient(#2a2a2a 0% 25%, #3a3a3a 0% 50%) 0 0 / 12px 12px"></canvas>
+    <div class="btnrow">
+      <label>パレット
+        <select id="nespal">
+          <option value="0">SP0 少女狩人</option>
+          <option value="1">SP1 決意マン</option>
+          <option value="2">SP2 パタパタ</option>
+          <option value="3">グレースケール</option>
+        </select>
+      </label>
+    </div>
+    <div class="btnrow">
+      <button class="btn sm" id="dl-chr">⬇ .chr 書き出し</button>
+      <button class="btn sm" id="copy-asm">📋 .byte コピー</button>
+    </div>
+    <div class="note">選択コマを 2列x4行のグリッド配置 (縦の隣=+16) でポーズ化。<br>
+      .chr は <a href="../chredit/">CHRエディタ</a> に読み込めばキャラアニメプレイヤーで再生できます (最大16ポーズ)</div>
+  </div>
+
   <div class="panel" style="flex:1; min-width:340px">
     <h2>使うコマを選ぶ (クリックで ON/OFF, Shift+クリックで範囲)</h2>
     <div class="btnrow">
@@ -110,6 +132,7 @@ function tick() {
   if (!l.length) return;
   pos = (pos + 1) % l.length;
   drawFrame(l[pos]);
+  drawNes(l[pos]);
 }
 function start() {
   if (!frameList().length) { $('status').textContent = 'コマが選ばれていません'; return; }
@@ -184,6 +207,174 @@ function loadHash() {
     sel[i] = !!(v & (1 << (i & 3)));
   }
 }
+// ==== ファミコンスプライト変換 ====
+const NES_RGB = {0x0F:[0,0,0],0x17:[120,60,0],0x25:[236,88,180],0x36:[236,180,176],
+                 0x12:[48,50,236],0x27:[212,136,32],0x30:[236,238,236],
+                 0x09:[8,58,0],0x2A:[76,208,32],0x00:[84,84,84],0x10:[152,150,152],0x20:[236,238,236]};
+const NES_PALS = [
+  [0x0F,0x17,0x25,0x36],   // SP0 少女狩人
+  [0x0F,0x12,0x27,0x30],   // SP1 決意マン
+  [0x0F,0x09,0x2A,0x30],   // SP2 パタパタ
+  [0x0F,0x00,0x10,0x20],   // グレー
+];
+const nesview = $('nesview'), nctx = nesview.getContext('2d');
+const nesCache = {};      // frame index -> 16x32 の色番号配列
+
+function classifyPixel(r, g, b) {
+  const hi = Math.max(r,g,b), lo = Math.min(r,g,b);
+  if (b > r + 20 && b > 80) return 1;            // 青 (スカーフ) → 色1
+  if (lo > 170 && hi - lo < 45) return 3;        // 白 → 色3
+  if (r > 190 && g > 140 && b > 110) return 3;   // 肌 → 色3
+  if (r > 140 && g < 130 && b > 60) return 2;    // ピンク/赤 → 色2
+  return 1;                                      // 髪/輪郭 → 色1
+}
+function convertFrame(i) {
+  if (nesCache[i]) return nesCache[i];
+  if (!imgs[i] || !imgs[i].complete) return null;
+  const c = document.createElement('canvas');
+  c.width = 368; c.height = 800;
+  const x = c.getContext('2d');
+  x.drawImage(imgs[i], 0, 0);
+  const d = x.getImageData(0, 0, 368, 800).data;
+  const W = 368, H = 800;
+  // 市松候補 (明るい無彩色) → 外周からのフラッドフィルで背景確定
+  const cand = new Uint8Array(W*H), bg = new Uint8Array(W*H);
+  for (let p = 0, q = 0; p < d.length; p += 4, q++) {
+    const r = d[p], g = d[p+1], b = d[p+2];
+    const hi = Math.max(r,g,b), lo = Math.min(r,g,b);
+    if (lo > 198 && hi - lo < 28) cand[q] = 1;
+  }
+  const stack = [];
+  for (let xx = 0; xx < W; xx++) { stack.push(xx, (H-1)*W + xx); }
+  for (let yy = 0; yy < H; yy++) { stack.push(yy*W, yy*W + W-1); }
+  while (stack.length) {
+    const q = stack.pop();
+    if (!cand[q] || bg[q]) continue;
+    bg[q] = 1;
+    const xx = q % W;
+    if (xx > 0) stack.push(q-1);
+    if (xx < W-1) stack.push(q+1);
+    if (q >= W) stack.push(q-W);
+    if (q < W*(H-1)) stack.push(q+W);
+  }
+  // 前景 bbox
+  let x0 = W, x1 = 0, y0 = H, y1 = 0;
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+    if (!bg[yy*W+xx]) {
+      if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
+      if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+    }
+  }
+  if (x1 <= x0 || y1 <= y0) return null;
+  // 高さ24に等比縮小して幅16へ中央クロップ、下寄せ。多数決量子化
+  const th = 24, tw = 16;
+  const scale = (y1 - y0) / th;
+  const wantW = Math.round(tw * scale);
+  const cx = (x0 + x1) >> 1;
+  const sx0 = cx - (wantW >> 1);
+  const grid = [];
+  for (let ty = 0; ty < 32; ty++) grid.push(new Array(16).fill(0));
+  for (let ty = 0; ty < th; ty++) {
+    for (let tx = 0; tx < tw; tx++) {
+      const ax = sx0 + Math.floor(tx * wantW / tw), bx = sx0 + Math.max(Math.floor((tx+1) * wantW / tw), Math.floor(tx * wantW / tw)+1);
+      const ay = y0 + Math.floor(ty * (y1-y0) / th), by = y0 + Math.max(Math.floor((ty+1) * (y1-y0) / th), Math.floor(ty * (y1-y0) / th)+1);
+      const cnt = [0,0,0,0]; let total = 0;
+      for (let yy = ay; yy < by; yy++) for (let xx = ax; xx < bx; xx++) {
+        if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
+        total++;
+        const q = yy*W + xx;
+        if (bg[q]) { cnt[0]++; continue; }
+        const p = q*4;
+        cnt[classifyPixel(d[p], d[p+1], d[p+2])]++;
+      }
+      const solid = total - cnt[0];
+      if (!total || solid < total * 0.32) continue;
+      // 多数決 (中身の色を少し優遇)
+      const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*1.15];
+      let best = 1; if (w[2] > w[best]) best = 2; if (w[3] > w[best]) best = 3;
+      grid[8 + ty][tx] = best;   // 下寄せ (行1-3 = y8-31)
+    }
+  }
+  nesCache[i] = grid;
+  return grid;
+}
+function drawNes(i) {
+  const g = convertFrame(i);
+  nctx.clearRect(0, 0, 16, 32);
+  if (!g) return;
+  const pal = NES_PALS[+$('nespal').value];
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) {
+    const v = g[y][x];
+    if (!v) continue;
+    const [r, gg, b] = NES_RGB[pal[v]];
+    nctx.fillStyle = `rgb(${r},${gg},${b})`;
+    nctx.fillRect(x, y, 1, 1);
+  }
+}
+$('nespal').onchange = () => { const l = frameList(); if (l.length) drawNes(l[pos % l.length]); };
+
+function poseTiles(g) {   // 16x32 グリッド → 8タイル (r0c0,r0c1,r1c0,...) 各16バイト
+  const tiles = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) {
+    const p0 = [], p1 = [];
+    for (let y = 0; y < 8; y++) {
+      let b0 = 0, b1 = 0;
+      for (let x = 0; x < 8; x++) {
+        const v = g[r*8+y][c*8+x];
+        b0 = (b0 << 1) | (v & 1);
+        b1 = (b1 << 1) | (v >> 1);
+      }
+      p0.push(b0); p1.push(b1);
+    }
+    tiles.push([...p0, ...p1]);
+  }
+  return tiles;
+}
+function selectedPoses() {
+  const l = frameList().slice(0, 16);
+  const poses = [];
+  for (const i of l) {
+    const g = convertFrame(i);
+    if (g) poses.push({ frame: i, tiles: poseTiles(g) });
+  }
+  return poses;
+}
+$('dl-chr').onclick = () => {
+  const poses = selectedPoses();
+  if (!poses.length) { $('status').textContent = '変換できるコマがありません'; return; }
+  const chr = new Uint8Array(4096);        // 1パターンテーブル (256タイル)
+  poses.forEach((p, pi) => {
+    const band = pi >> 3, col = (pi & 7) * 2;
+    p.tiles.forEach((t, k) => {
+      const r = k >> 1, c = k & 1;
+      const tile = (band * 4 + r) * 16 + col + c;   // グリッド配置 (縦+16)
+      chr.set(t, tile * 16);
+    });
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([chr], { type: 'application/octet-stream' }));
+  a.download = 'anim-poses.chr';
+  a.click();
+  $('status').textContent = `${poses.length} ポーズを anim-poses.chr に書き出しました`;
+};
+$('copy-asm').onclick = async () => {
+  const poses = selectedPoses();
+  if (!poses.length) { $('status').textContent = '変換できるコマがありません'; return; }
+  const hex = v => '$' + v.toString(16).padStart(2, '0').toUpperCase();
+  let txt = `; animplay 変換: ${poses.length} ポーズ (16x32, グリッド配置 tile = base + 行*16 + 列)\n`;
+  poses.forEach((p, pi) => {
+    const band = pi >> 3, base = (band * 4) * 16 + (pi & 7) * 2;
+    txt += `; pose ${pi} (コマ ${p.frame}, 基点 ${hex(base)})\n`;
+    p.tiles.forEach((t, k) => {
+      txt += `; pose ${pi} r${k >> 1}c${k & 1} (${hex(base + (k >> 1) * 16 + (k & 1))})\n`;
+      txt += '    .byte ' + t.slice(0, 8).map(hex).join(',') + '\n';
+      txt += '    .byte ' + t.slice(8).map(hex).join(',') + '\n';
+    });
+  });
+  await navigator.clipboard.writeText(txt);
+  $('status').textContent = '.byte データをコピーしました';
+};
+
 loadHash();
 refresh();
 imgs[0].onload = () => { if (!playing) drawFrame(frameList()[0] ?? 0); start(); };
