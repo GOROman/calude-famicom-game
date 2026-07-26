@@ -126,6 +126,9 @@ iblink_t:     .res 1    ; ラウンド画面の目パチタイマー
 iblink_go:    .res 1    ; 1=開き目を書く 2=閉じ目を書く (NMI が処理)
 cont_magic:   .res 1    ; $C5 なら current_stage が有効 (CONTINUE 用, リセットを跨ぐ)
 sfxn_type:    .res 1    ; ノイズ SFX 種類 (1=ショット 2-5=ヒット段階 6=破壊) ※ZPは末尾追加が鉄則
+checkpoint:   .res 1    ; 中間フラグ通過 (1=リスポーンは旗から)
+extend_cnt:   .res 1    ; エクステンド済みの1万点カウント
+init_col:     .res 1    ; level_init の開始列 (0 or 50=チェックポイント)
 
 .segment "BSS"
 col_buf:      .res 30   ; 1列分のタイルバッファ (縦30タイル)

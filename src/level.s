@@ -19,9 +19,9 @@ FEAT_PIT   = 5          ; 穴 (地面なし。落ちると死ぬ)
 level_init:
     lda #$FF
     sta col_pending
-    lda #0
+    lda init_col        ; チェックポイント復帰時は列50から64列描く
     sta prev_col
-    ldx #0
+    tax
 @loop:
     txa
     pha
@@ -32,7 +32,10 @@ level_init:
     pla
     tax
     inx
-    cpx #64
+    txa
+    sec
+    sbc init_col
+    cmp #64
     bne @loop
     lda #0
     sta PPUCTRL
@@ -192,6 +195,23 @@ render_column:
     lda #$70            ; 左半分 = 旗 (行12)
     sta col_buf+12
 @no_flag:
+    ; ---- 中間フラグ (メタ列29 = 全ステージで地面あり, 短いポール) ----
+    lda probe_res
+    cmp #29
+    bne @no_cp
+    lda tmp
+    beq @cp_left
+    ldy #19             ; 右半分 = ポール (行19-24)
+    lda #$6F
+:   sta col_buf,y
+    iny
+    cpy #25
+    bne :-
+    beq @no_cp          ; 常に分岐
+@cp_left:
+    lda #$70            ; 左半分 = 旗 (行19)
+    sta col_buf+19
+@no_cp:
     lda tmp2
     cmp #FEAT_PIT       ; 穴: 地面を描かない (山は残る)
     bne :+

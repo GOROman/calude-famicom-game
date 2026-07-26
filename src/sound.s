@@ -83,6 +83,13 @@ sfx_item:               ; アイテム取得 = 上昇アルペジオ (SQ2)
     lda #0
     sta sfx2_t
     rts
+
+sfx_1up:                ; 1UP = 専用ジングル (SQ2, SMB風の駆け上がり)
+    lda #5
+    sta sfx2_type
+    lda #0
+    sta sfx2_t
+    rts
 sfx_hit_n:              ; A=0..4 段階ヒット (4=破壊音)
     clc
     adc #2
@@ -696,11 +703,15 @@ sfx_overlay:
     beq @coin
     cmp #4
     beq @item
-    jmp @end2           ; type1 (旧ショット) は廃止
+    cmp #5
+    bne :+
+    jmp @oneup
+:   jmp @end2           ; type1 (旧ショット) は廃止
 @item:
     cpx #24             ; アイテム取得: C5 E5 G5 C6 を6Fずつ駆け上がる
-    bcs @end2
-    txa
+    bcc :+
+    jmp @end2
+:   txa
     lsr
     lsr
     and #3
@@ -756,6 +767,22 @@ sfx_overlay:
     ora #%11111000
     sta $4007
     lda #%01110111      ; デューティ25% vol 7
+    sta SQ2_VOL
+    inc sfx2_t
+    jmp @noi
+@oneup:
+    cpx #24             ; 1UP: E5 G5 E6 C6 D6 G6 を4Fずつ駆け上がる
+    bcc :+
+    jmp @end2
+:   txa
+    lsr
+    lsr
+    tay
+    lda arp_1up,y       ; 周期下位 (全ノート hi=0 の高域)
+    sta $4006
+    lda #%11111000
+    sta $4007
+    lda #%10111010      ; duty50 vol10
     sta SQ2_VOL
     inc sfx2_t
     jmp @noi
@@ -916,7 +943,8 @@ pulse_hi_tbl: .byte 0,  2,  2,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  1,  0,  
 vib_tbl:  .byte 0,1,1,2,2,2,1,1,0,$FF,$FF,$FE,$FE,$FE,$FF,$FF
 vib_deep: .byte 0,2,4,5,6,5,4,2,0,$FE,$FC,$FB,$FA,$FB,$FC,$FE
 mel_vib:  .byte 0,1,0,$FF           ; リードの遅れビブラート (±1)
-start_arp: .byte 10,11,12,10        ; 高速アルペジオ C5 E5 G5 C5
+start_arp: .byte 10,11,12,10
+arp_1up:   .byte $A9,$8D,$54,$6A,$5E,$46  ; E5 G5 E6 C6 D6 G6 の周期下位        ; 高速アルペジオ C5 E5 G5 C5
 noi_freq:  .byte 0,$04,$06,$07,$08,$0A,$0C  ; [type] ノイズ周期
 noi_len:   .byte 0,6,8,9,10,12,26           ; [type] 長さ
 noi_vol:   .byte 0,8,10,11,12,13,14         ; [type] 開始音量

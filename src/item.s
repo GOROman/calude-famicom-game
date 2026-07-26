@@ -91,16 +91,27 @@ update_items:
     lda item_flag,x
     cmp #2
     beq @power
+    cmp #3
+    beq @oneup
     lda #$FF            ; 無敵の星
     sta star_timer
     bne @took           ; 常に分岐
 @power:
     lda #1              ; パワー矢
     sta weapon_level
+    bne @took           ; 常に分岐
+@oneup:
+    lda lives           ; 1UP (残機は9まで)
+    cmp #9
+    bcs :+
+    inc lives
+:   jsr sfx_1up         ; 専用ジングル
+    jmp @took2
 @took:
+    jsr sfx_item        ; 取得ファンファーレ
+@took2:
     lda #0
     sta item_flag,x
-    jsr sfx_item        ; 取得ファンファーレ
     lda #5              ; アイテム取得 = 500点
     jsr add_score
 @next:
@@ -127,10 +138,17 @@ draw_items:
     lda item_flag,x
     cmp #2
     beq @power_tile
+    cmp #3
+    beq @oneup_tile
     lda #$4E            ; 星 (パレット1 = 黄/白)
     sta OAM_BUF+1,y
     lda #1
     bne @attr
+@oneup_tile:
+    lda #$5F            ; 1UP = 顔アイコン (パレット0)
+    sta OAM_BUF+1,y
+    lda #0
+    beq @attr           ; 常に分岐
 @power_tile:
     lda #$4F            ; パワー矢 (パレット0)
     sta OAM_BUF+1,y
@@ -222,8 +240,11 @@ update_coins:
     cmp #9
     bne @no_1up
 @give_1up:
+    lda lives
+    cmp #9              ; 残機は9まで
+    bcs :+
     inc lives
-    jsr sfx_defeat      ; 1UP ジングル (撃破アルペジオ流用)
+:   jsr sfx_1up         ; 専用 1UP ジングル
 @no_1up:
     lda #2              ; コイン = 200点
     jsr add_score

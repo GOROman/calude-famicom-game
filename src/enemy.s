@@ -381,11 +381,7 @@ update_enemies:
     lda enemy_dir,x
     cmp #4
     bcc :+
-    lda frame_count     ; 破壊! ランダムドロップ (星 or パワー矢)
-    and #1
-    clc
-    adc #1
-    sta drop_override
+    jsr choose_drop     ; 破壊! ランダムドロップ (1/8 で 1UP, 残りは星/パワー矢)
     lda enemy_ypos,x    ; (kill_enemy は X=スロット必須なので add_score より先)
     clc
     adc #4
@@ -785,6 +781,22 @@ draw_enemies:
 @fx_hide:
     lda #$FF
     sta OAM_BUF+88
+    rts
+
+
+; ---- 石化破壊のドロップ抽選 (1/8 で 1UP, 残りは星/パワー矢) ----
+choose_drop:
+    lda frame_count
+    and #7
+    cmp #7
+    bne :+
+    lda #3              ; 1UP
+    sta drop_override
+    rts
+:   and #1
+    clc
+    adc #1
+    sta drop_override
     rts
 
 .segment "RODATA"

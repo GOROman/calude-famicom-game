@@ -2,7 +2,7 @@
 
 **狩人 (かりゅーど) の少女**が主人公のファミコン(NES)**横スクロールアクションゲーム**。6502 アセンブラ (ca65) でフルスクラッチ開発するプロジェクトです。[Claude Code](https://claude.com/claude-code) (Fable 5) と一緒にステップバイステップで作っていきます。
 
-**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/46-round-title-face.nes)** (最新版: roms/46-round-title-face.nes)
+**▶ 遊ぶ: [cluade-famicom-emu で直接ブート](https://goroman.github.io/cluade-famicom-emu/?pin=0&debug=1&rom=https://raw.githubusercontent.com/GOROman/calude-famicom-game/main/roms/47-checkpoint-1up.nes)** (最新版: roms/47-checkpoint-1up.nes)
 
 **🛠 [ステージエディタ](https://goroman.github.io/calude-famicom-game/editor/)** — ブラウザでステージを編集。URLがセーブデータになり、改造 .nes を書き出してそのまま遊べます
 
@@ -107,8 +107,8 @@ make clean
 
 ### この先の 6 STEP
 
-- [ ] **Step 8: 敵バリエーション** — 飛ぶ決意マン (サイン波飛行)・跳ねる決意マンを追加し、ステージが進むほど手強い配置に。決意マンにも個性がある
-- [ ] **Step 9: チェックポイントと 1UP** — ステージ中間の旗で復活位置を保存。1UP アイテムとスコア 10000 点ごとのエクステンド (専用ジングル付き)
+- [x] **Step 8: 敵バリエーション** — コウモリ (サイン波飛行)・ホッパー (放物線ジャンプ)・パタパタ (上下往復の足場) を追加。決意マンにも個性がある
+- [x] **Step 9: チェックポイントと 1UP** — ステージ中間の旗で復活位置を保存。1UP アイテムとスコア 10000 点ごとのエクステンド (専用ジングル付き)
 - [ ] **Step 10: ステージの表情** — 面ごとに BG パレットを切替 (昼 → 夕方 → 夜 → 決戦の赤黒)、BGM もテンポ/キーが変化。ポーズ機能 (START) も追加
 - [ ] **Step 11: 記録が残る** — バッテリーバックアップ (SRAM) でハイスコア保存。タイトルの OPTION を実装してタイムアタックモード (クリアタイムをフレーム精度表示) を選択可能に
 - [ ] **Step 12: 制作パイプライン統合** — ステージエディタから改造 ROM をワンクリックでエミュレータ起動。png2chr の出力を Makefile で直接取り込み、画像を置くだけでキャラが差し替わるビルドに
@@ -132,6 +132,7 @@ Step ごとのエッセイ風開発日誌を [docs/diary/](docs/diary/README.md)
 - [番外編: ドットを打つ道具を、ドットのゲームに添える (CHR-ROMエディタ)](docs/diary/chredit.md)
 - [番外編: 設定画の彼女が、16ドットに宿る (主人公打ち直し)](docs/diary/redraw.md)
 - [番外編: ラウンド画面に、あの顔を (バンク切替スプリット)](docs/diary/round-face.md)
+- [Step 9: 旗はふたつめの家 (チェックポイントと1UP)](docs/diary/checkpoint.md)
 
 ## License
 

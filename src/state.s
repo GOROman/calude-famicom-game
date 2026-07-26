@@ -797,6 +797,8 @@ update_title:
     sta coin_ones
     sta coin_tens
     sta score_tens
+    sta checkpoint
+    sta extend_cnt
     jmp start_stage
 @done:
     rts
@@ -804,7 +806,18 @@ update_title:
 ; ---- 一番右 (WORLD_X_MAX) まで行ったらステージクリア! ----
 ; ただしボス決意マンが生きている間はクリアできない
 check_clear:
-    lda boss_state
+    lda checkpoint      ; 中間フラグ (world_x >= 472) 通過チェック
+    bne :++
+    lda world_x_hi
+    cmp #1
+    bcc :++
+    bne :+              ; hi >= 2 → 確実に通過
+    lda world_x_lo
+    cmp #$D8
+    bcc :++
+:   lda #1
+    sta checkpoint
+:   lda boss_state
     cmp #1
     beq @no
     lda world_x_hi
@@ -849,6 +862,7 @@ add_score:              ; A = 加算する百点数 (X は保存する)
 @next:
     dex
     bpl @norm
+    jsr check_extend
     pla
     tax
     rts
@@ -858,8 +872,33 @@ add_score:              ; A = 加算する百点数 (X は保存する)
     sta score+1
     sta score+2
     sta score+3
+    jsr check_extend
     pla
     tax
+    rts
+
+; ---- 10000点ごとにエクステンド (1万点カウントが増えたら 1UP) ----
+check_extend:
+    lda score           ; カウント = score[0]*10 + score[1]
+    asl
+    asl
+    asl
+    sta tmp
+    lda score
+    asl
+    clc
+    adc tmp
+    clc
+    adc score+1
+    cmp extend_cnt
+    beq @no_ext
+    sta extend_cnt
+    lda lives
+    cmp #9              ; 残機は9でカンスト (表示が1桁のため)
+    bcs :+
+    inc lives
+:   jsr sfx_1up
+@no_ext:
     rts
 
 ; ---- 死亡演出の開始 (敵接触・穴落下から呼ばれる) ----
@@ -929,6 +968,8 @@ update_state:
     cmp #3
     beq @to_reset
     ; クリア → 次のステージへ。1-4 をクリアしたらエンディング!
+    lda #0              ; 中間フラグは次のステージへ持ち越さない
+    sta checkpoint
     inc current_stage
     lda current_stage
     cmp #NUM_STAGES
@@ -945,6 +986,8 @@ update_state:
     sta star_timer
     jmp start_stage     ; ステージを最初から (背景もリセット = 判定ズレ防止)
 @game_over:
+    lda #0
+    sta checkpoint
     lda #3
     sta game_state
     lda #STATE_TIME_OVER
@@ -961,7 +1004,21 @@ update_state:
     sta nmi_ready
     jsr set_chr_bank    ; A=0: ゲーム用バンクへ戻す
     jsr ppu_init
-    jsr level_init
+    lda #0
+    sta init_col
+    lda checkpoint      ; 中間フラグ通過後は旗の位置から再開
+    beq :+
+    lda #44             ; 列44から64列描画 (旗=タイル列58が画面内)
+    sta init_col
+    lda #$60            ; scroll = 352
+    sta scroll_lo
+    lda #1
+    sta scroll_hi
+    lda #$D8            ; world_x = 472 (旗の位置)
+    sta world_x_lo
+    lda #1
+    sta world_x_hi
+:   jsr level_init
     lda #0
     sta game_state
     lda #%10000000
