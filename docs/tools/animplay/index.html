@@ -69,8 +69,8 @@
       <button class="btn sm" id="share">🔗 URLに保存</button>
     </div>
     <div id="status"></div>
-    <div class="note">元動画: grok 生成の少女狩人 先頭 32 コマ (24fps, 368x800)。<br>
-      素材 PNG は <a href="frames/f010.png">frames/fNNN.png</a></div>
+    <div class="note">元動画: grok 生成の少女狩人。先頭32コマから偶数コマだけ間引いた 15 コマ (実質12fps相当, 368x800)。<br>
+      素材 PNG は <a href="frames/f007.png">frames/fNNN.png</a></div>
   </div>
 
   <div class="panel" style="flex:1; min-width:340px">
@@ -79,7 +79,6 @@
       <button class="btn sm" id="all">全選択</button>
       <button class="btn sm" id="none">全解除</button>
       <button class="btn sm" id="invert">反転</button>
-      <button class="btn sm" id="even">偶数コマだけ (半分に間引く)</button>
     </div>
     <div id="strip"></div>
   </div>
@@ -87,7 +86,7 @@
 </main>
 <script>
 'use strict';
-const N = 32;
+const N = 15;
 const $ = id => document.getElementById(id);
 const imgs = [];
 let sel = new Array(N).fill(true);
@@ -159,7 +158,6 @@ $('bg').onchange = () => { view.className = $('bg').value; };
 $('all').onclick = () => { sel.fill(true); refresh(); };
 $('none').onclick = () => { sel.fill(false); refresh(); };
 $('invert').onclick = () => { sel = sel.map(v => !v); refresh(); };
-$('even').onclick = () => { sel = sel.map((v, i) => v && i % 2 === 0); refresh(); };
 $('share').onclick = async () => {
   saveHash();
   await navigator.clipboard.writeText(location.href);

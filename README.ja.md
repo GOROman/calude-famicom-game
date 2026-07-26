@@ -14,7 +14,7 @@
 
 **🖌 [CHR-ROM エディタ](https://goroman.github.io/calude-famicom-game/tools/chredit/)** — ROM のタイルグラフィックをブラウザでドット編集。1〜4キー+スペースのキーボード操作、UNDO、アニメーションチェック付き。改造 .nes を書き出してそのまま遊べます
 
-**🎞 [アニメーションプレイヤー](https://goroman.github.io/calude-famicom-game/tools/animplay/)** — 動画から切り出したフレーム (少女狩人 32コマ) を、コマ選択+フレームレート指定でループ再生。URLが保存データ
+**🎞 [アニメーションプレイヤー](https://goroman.github.io/calude-famicom-game/tools/animplay/)** — 動画から切り出したフレーム (少女狩人 15コマ) を、コマ選択+フレームレート指定でループ再生。URLが保存データ
 
 **👁 [目パチエディタ](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — タイトル画面の目パチ (閉じ目/半目/白目) をドット単位で編集、実機同様のプレビュー付き。JSON を `tools/apply_blink.py` でアセットに反映
 
