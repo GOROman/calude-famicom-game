@@ -44,7 +44,7 @@
 <body>
 <header>
   <h1>アニメーションプレイヤー</h1>
-  <span class="sub">動画から切り出した透過フレームを、コマ選択 + フレームレート指定でループ再生 —
+  <span class="sub">動画から切り出したフレームを、コマ選択 + フレームレート指定でループ再生 —
     <a href="../chredit/">CHRエディタ</a> /
     <a href="../../editor/">ステージエディタ</a> /
     <a href="https://github.com/GOROman/calude-famicom-game">GitHub</a></span>
@@ -53,7 +53,7 @@
 
   <div class="panel">
     <h2>プレビュー</h2>
-    <canvas id="view" class="checker" width="368" height="800" style="width:276px; height:600px"></canvas>
+    <canvas id="view" class="black" width="368" height="800" style="width:276px; height:600px"></canvas>
     <div class="btnrow">
       <button class="btn" id="play">▶ 再生</button>
       <label>速度 <input type="range" id="fps" min="1" max="30" value="12"> <span id="fpsval">12</span> fps</label>
@@ -61,16 +61,16 @@
     <div class="btnrow">
       <label>背景
         <select id="bg">
-          <option value="checker">市松 (透過確認)</option>
-          <option value="green">グリーンバック</option>
           <option value="black">黒</option>
+          <option value="checker">市松</option>
+          <option value="green">グリーンバック</option>
         </select>
       </label>
       <button class="btn sm" id="share">🔗 URLに保存</button>
     </div>
     <div id="status"></div>
-    <div class="note">元動画: grok 生成の少女狩人 145 コマ (24fps, 368x800)。<br>
-      市松模様の背景は透過済み。素材 PNG は <a href="frames/f060.png">frames/fNNN.png</a></div>
+    <div class="note">元動画: grok 生成の少女狩人 先頭 32 コマ (24fps, 368x800)。<br>
+      素材 PNG は <a href="frames/f010.png">frames/fNNN.png</a></div>
   </div>
 
   <div class="panel" style="flex:1; min-width:340px">
@@ -87,14 +87,11 @@
 </main>
 <script>
 'use strict';
-const N = 145;
+const N = 32;
 const $ = id => document.getElementById(id);
 const imgs = [];
 let sel = new Array(N).fill(true);
 let playing = false, timer = null, pos = 0, lastClick = -1;
-
-// 冒頭2コマはタイトル背景 (非透過) なのでデフォルト OFF
-sel[0] = sel[1] = false;
 
 const view = $('view'), ctx = view.getContext('2d');
 
@@ -191,7 +188,7 @@ function loadHash() {
 }
 loadHash();
 refresh();
-imgs[2].onload = () => { if (!playing) drawFrame(frameList()[0] ?? 2); start(); };
+imgs[0].onload = () => { if (!playing) drawFrame(frameList()[0] ?? 0); start(); };
 </script>
 </body>
 </html>
