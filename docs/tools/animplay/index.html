@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アニメーションプレイヤー (狩人行動)</title>
+<style>
+  :root { --red:#8b1a1a; --cream:#f5e9d0; --gold:#ffd700; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#1a1a1a; color:var(--cream); font-family:'Hiragino Kaku Gothic ProN', ui-sans-serif, sans-serif; }
+  header { background:var(--red); padding:10px 16px; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { font-size:12px; opacity:.85; }
+  header .sub a { color:#ffd0a0; }
+  main { padding:16px; display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  .panel { background:#242424; border:2px solid #444; border-radius:8px; padding:12px; }
+  h2 { font-size:14px; margin:0 0 8px; }
+  .btn { background:var(--red); border:none; color:var(--cream); padding:7px 14px; border-radius:6px;
+         cursor:pointer; font-size:13px; font-weight:bold; box-shadow:0 2px 0 #5d0f0f; }
+  .btn:active { transform:translateY(2px); box-shadow:none; }
+  .btn.sm { padding:5px 10px; font-size:12px; }
+  .btnrow { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; align-items:center; }
+  #view { border:2px solid #555; image-rendering:auto; }
+  #view.checker { background:repeating-conic-gradient(#2e2e2e 0% 25%, #3c3c3c 0% 50%) 0 0 / 24px 24px; }
+  #view.green { background:#00b400; }
+  #view.black { background:#000; }
+  #strip { display:flex; flex-wrap:wrap; gap:4px; max-width:760px; max-height:520px; overflow-y:auto;
+           background:#181818; border:1px solid #444; border-radius:6px; padding:6px; }
+  #strip .th { position:relative; cursor:pointer; border:2px solid #555; border-radius:4px;
+               background:repeating-conic-gradient(#2e2e2e 0% 25%, #3c3c3c 0% 50%) 0 0 / 10px 10px; }
+  #strip .th img { display:block; width:44px; height:96px; object-fit:cover; opacity:.25; }
+  #strip .th.on { border-color:var(--gold); }
+  #strip .th.on img { opacity:1; }
+  #strip .th.cur { outline:2px solid #7fc4ff; }
+  #strip .th .no { position:absolute; left:2px; top:0; font-size:9px; color:#fff; text-shadow:0 0 3px #000;
+                   font-family:ui-monospace,monospace; }
+  .note { font-size:12px; color:#aaa; margin-top:6px; line-height:1.7; }
+  #status { font-family:ui-monospace,monospace; font-size:12px; color:#9fdf9f; min-height:16px; margin-top:6px; }
+  label { font-size:13px; }
+  input[type=range] { vertical-align:middle; }
+  select { background:#333; color:var(--cream); border:1px solid #555; border-radius:4px; padding:3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>アニメーションプレイヤー</h1>
+  <span class="sub">動画から切り出した透過フレームを、コマ選択 + フレームレート指定でループ再生 —
+    <a href="../chredit/">CHRエディタ</a> /
+    <a href="../../editor/">ステージエディタ</a> /
+    <a href="https://github.com/GOROman/calude-famicom-game">GitHub</a></span>
+</header>
+<main>
+
+  <div class="panel">
+    <h2>プレビュー</h2>
+    <canvas id="view" class="checker" width="368" height="800" style="width:276px; height:600px"></canvas>
+    <div class="btnrow">
+      <button class="btn" id="play">▶ 再生</button>
+      <label>速度 <input type="range" id="fps" min="1" max="30" value="12"> <span id="fpsval">12</span> fps</label>
+    </div>
+    <div class="btnrow">
+      <label>背景
+        <select id="bg">
+          <option value="checker">市松 (透過確認)</option>
+          <option value="green">グリーンバック</option>
+          <option value="black">黒</option>
+        </select>
+      </label>
+      <button class="btn sm" id="share">🔗 URLに保存</button>
+    </div>
+    <div id="status"></div>
+    <div class="note">元動画: grok 生成の少女狩人 145 コマ (24fps, 368x800)。<br>
+      市松模様の背景は透過済み。素材 PNG は <a href="frames/f060.png">frames/fNNN.png</a></div>
+  </div>
+
+  <div class="panel" style="flex:1; min-width:340px">
+    <h2>使うコマを選ぶ (クリックで ON/OFF, Shift+クリックで範囲)</h2>
+    <div class="btnrow">
+      <button class="btn sm" id="all">全選択</button>
+      <button class="btn sm" id="none">全解除</button>
+      <button class="btn sm" id="invert">反転</button>
+      <button class="btn sm" id="even">偶数コマだけ (半分に間引く)</button>
+    </div>
+    <div id="strip"></div>
+  </div>
+
+</main>
+<script>
+'use strict';
+const N = 145;
+const $ = id => document.getElementById(id);
+const imgs = [];
+let sel = new Array(N).fill(true);
+let playing = false, timer = null, pos = 0, lastClick = -1;
+
+// 冒頭2コマはタイトル背景 (非透過) なのでデフォルト OFF
+sel[0] = sel[1] = false;
+
+const view = $('view'), ctx = view.getContext('2d');
+
+function frameList() {
+  const l = [];
+  for (let i = 0; i < N; i++) if (sel[i]) l.push(i);
+  return l;
+}
+function drawFrame(i) {
+  ctx.clearRect(0, 0, 368, 800);
+  if (imgs[i] && imgs[i].complete) ctx.drawImage(imgs[i], 0, 0);
+  $('status').textContent = `コマ ${i} / 選択 ${frameList().length}枚 / ${$('fps').value}fps`;
+  document.querySelectorAll('#strip .th').forEach((t, k) => t.classList.toggle('cur', k === i));
+}
+function tick() {
+  const l = frameList();
+  if (!l.length) return;
+  pos = (pos + 1) % l.length;
+  drawFrame(l[pos]);
+}
+function start() {
+  if (!frameList().length) { $('status').textContent = 'コマが選ばれていません'; return; }
+  playing = true; $('play').textContent = '⏸ 停止';
+  clearInterval(timer);
+  timer = setInterval(tick, 1000 / +$('fps').value);
+}
+function stop() { playing = false; $('play').textContent = '▶ 再生'; clearInterval(timer); }
+
+// ---- サムネイルストリップ ----
+const strip = $('strip');
+for (let i = 0; i < N; i++) {
+  const d = document.createElement('div');
+  d.className = 'th' + (sel[i] ? ' on' : '');
+  const im = document.createElement('img');
+  im.loading = 'lazy';
+  im.src = `frames/f${String(i).padStart(3, '0')}.png`;
+  imgs[i] = new Image();
+  imgs[i].src = im.src;
+  const no = document.createElement('span');
+  no.className = 'no'; no.textContent = i;
+  d.appendChild(im); d.appendChild(no);
+  d.addEventListener('click', e => {
+    if (e.shiftKey && lastClick >= 0) {
+      const [a, b] = [Math.min(lastClick, i), Math.max(lastClick, i)];
+      const v = sel[lastClick];
+      for (let k = a; k <= b; k++) sel[k] = v;
+    } else {
+      sel[i] = !sel[i];
+    }
+    lastClick = i;
+    refresh();
+  });
+  strip.appendChild(d);
+}
+function refresh() {
+  document.querySelectorAll('#strip .th').forEach((t, k) => t.classList.toggle('on', sel[k]));
+  if (!playing) { const l = frameList(); if (l.length) drawFrame(l[Math.min(pos, l.length-1)]); }
+  saveHash();
+}
+
+// ---- 操作 ----
+$('play').onclick = () => playing ? stop() : start();
+$('fps').oninput = () => { $('fpsval').textContent = $('fps').value; if (playing) start(); saveHash(); };
+$('bg').onchange = () => { view.className = $('bg').value; };
+$('all').onclick = () => { sel.fill(true); refresh(); };
+$('none').onclick = () => { sel.fill(false); refresh(); };
+$('invert').onclick = () => { sel = sel.map(v => !v); refresh(); };
+$('even').onclick = () => { sel = sel.map((v, i) => v && i % 2 === 0); refresh(); };
+$('share').onclick = async () => {
+  saveHash();
+  await navigator.clipboard.writeText(location.href);
+  $('status').textContent = 'URL をコピーしました (この URL が保存データです)';
+};
+
+// ---- URL ハッシュ = 保存データ (fps + 選択ビットマスク hex) ----
+function saveHash() {
+  let hex = '';
+  for (let i = 0; i < N; i += 4) {
+    let v = 0;
+    for (let b = 0; b < 4; b++) if (sel[i + b]) v |= 1 << b;
+    hex += v.toString(16);
+  }
+  history.replaceState(null, '', `#${$('fps').value}.${hex}`);
+}
+function loadHash() {
+  const m = location.hash.match(/^#(\d+)\.([0-9a-f]+)$/);
+  if (!m) return;
+  $('fps').value = Math.min(30, Math.max(1, +m[1]));
+  $('fpsval').textContent = $('fps').value;
+  for (let i = 0; i < N; i++) {
+    const v = parseInt(m[2][i >> 2] || '0', 16);
+    sel[i] = !!(v & (1 << (i & 3)));
+  }
+}
+loadHash();
+refresh();
+imgs[2].onload = () => { if (!playing) drawFrame(frameList()[0] ?? 2); start(); };
+</script>
+</body>
+</html>

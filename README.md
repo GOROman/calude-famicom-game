@@ -14,6 +14,8 @@ A **side-scrolling action game for the NES (Famicom)** starring a young **huntre
 
 **🖌 [CHR-ROM Editor](https://goroman.github.io/calude-famicom-game/tools/chredit/)** — pixel-edit the ROM's tile graphics in the browser. Keyboard-driven (1–4 keys + space), with undo, save/load, and an animation checker. Export a modified .nes and play it
 
+**🎞 [Animation Player](https://goroman.github.io/calude-famicom-game/tools/animplay/)** — loop-play transparent frames extracted from video (145 frames of the huntress) with frame selection and adjustable FPS; the URL is the save data. Assets are produced by `tools/video2frames.py` (checkerboard → transparent PNG)
+
 **👁 [Blink Editor](https://goroman.github.io/calude-famicom-game/tools/blinkedit/)** — pixel-edit the title screen's eye-blink frames with a hardware-accurate preview. Apply the JSON to the assets with `tools/apply_blink.py`
 
 Verification is done on the homemade WASM emulator [cluade-famicom-emu](https://github.com/GOROman/cluade-famicom-emu). (The spellings *calude* / *cluade* are intentional.)
