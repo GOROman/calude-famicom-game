@@ -54,7 +54,7 @@ const save = (m, name) => {
   run(2, 0x08); run(1, 0);
   w = 0; while (zp(A.game_state) !== 6 && w < 500) { m._nes_frame(); w++; }
   while (zp(A.game_state) === 6) m._nes_frame();
-  for (let wx = 120; wx < 860; wx += 4) {              // 無敵テレポート歩行
+  for (let wx = 120; wx < 780; wx += 4) {              // 無敵テレポート歩行 (ボス手前で停止)
     ram()[A.world_x_lo] = wx & 255; ram()[A.world_x_hi] = wx >> 8;
     ram()[A.player_y] = 168; ram()[A.on_ground] = 1;
     ram()[A.vel_y_lo] = 0; ram()[A.vel_y_hi] = 0;
@@ -62,8 +62,11 @@ const save = (m, name) => {
     m._nes_frame();
   }
   ram()[A.star_timer] = 0;
-  run(40, 0);                                          // ボスが跳ぶのを待つ
-  run(1, 0x02); run(8, 0);                             // 弓を構えた瞬間
+  run(1, 0x02); run(6, 0);                             // 弓を構える
+  for (let i = 0; i < 240; i++) {                      // ボスが画面内かつ点滅オフのフレームを待つ
+    m._nes_frame();
+    if (ram()[0x200 + 192] !== 0xFF) break;            // ボス OAM 先頭の Y が有効
+  }
   save(m, 'boss');
   console.log('captured: title/jump/boss, boss_state=' + zp(A.boss_state));
 })();
