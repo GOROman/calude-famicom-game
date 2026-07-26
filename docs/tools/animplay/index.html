@@ -91,7 +91,7 @@
       <button class="btn sm" id="dl-chr">⬇ .chr 書き出し</button>
       <button class="btn sm" id="copy-asm">📋 .byte コピー</button>
     </div>
-    <div class="note">選択コマを 2列x4行のグリッド配置 (縦の隣=+16) でポーズ化。<br>
+    <div class="note">選択コマを 16x32 フル + 頭大きめのデフォルメでポーズ化、グリッド配置 (縦の隣=+16)。<br>
       .chr は <a href="../chredit/">CHRエディタ</a> に読み込めばキャラアニメプレイヤーで再生できます (最大16ポーズ)</div>
   </div>
 
@@ -266,35 +266,48 @@ function convertFrame(i) {
     }
   }
   if (x1 <= x0 || y1 <= y0) return null;
-  // 高さ24に等比縮小して幅16へ中央クロップ、下寄せ。多数決量子化
-  const th = 24, tw = 16;
-  const scale = (y1 - y0) / th;
-  const wantW = Math.round(tw * scale);
-  const cx = (x0 + x1) >> 1;
-  const sx0 = cx - (wantW >> 1);
+  // 16x32 をフルに使い、頭を大きくデフォルメ:
+  //   頭バンド (bbox 上部 28%) → 出力の上 14px / 体 → 残り 18px
+  //   各バンドの前景幅に合わせて横も詰める (チビキャラ化)
   const grid = [];
   for (let ty = 0; ty < 32; ty++) grid.push(new Array(16).fill(0));
-  for (let ty = 0; ty < th; ty++) {
-    for (let tx = 0; tx < tw; tx++) {
-      const ax = sx0 + Math.floor(tx * wantW / tw), bx = sx0 + Math.max(Math.floor((tx+1) * wantW / tw), Math.floor(tx * wantW / tw)+1);
-      const ay = y0 + Math.floor(ty * (y1-y0) / th), by = y0 + Math.max(Math.floor((ty+1) * (y1-y0) / th), Math.floor(ty * (y1-y0) / th)+1);
-      const cnt = [0,0,0,0]; let total = 0;
-      for (let yy = ay; yy < by; yy++) for (let xx = ax; xx < bx; xx++) {
-        if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
-        total++;
-        const q = yy*W + xx;
-        if (bg[q]) { cnt[0]++; continue; }
-        const p = q*4;
-        cnt[classifyPixel(d[p], d[p+1], d[p+2])]++;
-      }
-      const solid = total - cnt[0];
-      if (!total || solid < total * 0.32) continue;
-      // 多数決 (中身の色を少し優遇)
-      const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*1.15];
-      let best = 1; if (w[2] > w[best]) best = 2; if (w[3] > w[best]) best = 3;
-      grid[8 + ty][tx] = best;   // 下寄せ (行1-3 = y8-31)
+  const bandX = (ay, by) => {          // バンド内の前景 x 範囲
+    let a = W, b = 0;
+    for (let yy = ay; yy < by; yy++) for (let xx = x0; xx <= x1; xx++) {
+      if (!bg[yy*W+xx]) { if (xx < a) a = xx; if (xx > b) b = xx; }
     }
-  }
+    return b > a ? [a, b + 1] : [x0, x1 + 1];
+  };
+  const sample = (dy0, dy1, sy0, sy1, sx0, sx1) => {
+    const dh = dy1 - dy0, dw = 16;
+    for (let ty = 0; ty < dh; ty++) {
+      for (let tx = 0; tx < dw; tx++) {
+        const ax = sx0 + Math.floor(tx * (sx1-sx0) / dw);
+        const bx = Math.max(sx0 + Math.floor((tx+1) * (sx1-sx0) / dw), ax + 1);
+        const ay = sy0 + Math.floor(ty * (sy1-sy0) / dh);
+        const by = Math.max(sy0 + Math.floor((ty+1) * (sy1-sy0) / dh), ay + 1);
+        const cnt = [0,0,0,0]; let total = 0;
+        for (let yy = ay; yy < by; yy++) for (let xx = ax; xx < bx; xx++) {
+          if (xx < 0 || xx >= W || yy < 0 || yy >= H) continue;
+          total++;
+          const q = yy*W + xx;
+          if (bg[q]) { cnt[0]++; continue; }
+          const p = q*4;
+          cnt[classifyPixel(d[p], d[p+1], d[p+2])]++;
+        }
+        const solid = total - cnt[0];
+        if (!total || solid < total * 0.32) continue;
+        const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*1.15];
+        let best = 1; if (w[2] > w[best]) best = 2; if (w[3] > w[best]) best = 3;
+        grid[dy0 + ty][tx] = best;
+      }
+    }
+  };
+  const headEnd = y0 + Math.round((y1 - y0) * 0.28);
+  const [hx0, hx1] = bandX(y0, headEnd);
+  const [bx0, bx1] = bandX(headEnd, y1 + 1);
+  sample(0, 14, y0, headEnd, hx0, hx1);        // 頭 (大きく)
+  sample(14, 32, headEnd, y1 + 1, bx0, bx1);   // 体
   nesCache[i] = grid;
   return grid;
 }
