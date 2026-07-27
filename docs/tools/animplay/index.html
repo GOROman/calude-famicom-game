@@ -317,6 +317,11 @@ function convertFrame(i) {
   //     それ以外 (髪のてっぺん・後頭部/ポニーテール側) は肌を強く抑制
   sample(0, 14, y0, headEnd, hx0, hx1,
          (t, u) => (t >= 0.45 && u < 0.62) ? 1.5 : 0.15);
+  for (let y = 0; y < 14; y++) {               // 顔ゾーン外に残った肌は髪 (茶) に確定
+    for (let x = 0; x < 16; x++) {
+      if (grid[y][x] === 3 && !(y / 14 >= 0.45 && x / 16 < 0.62)) grid[y][x] = 1;
+    }
+  }
   sample(14, 32, headEnd, y1 + 1, bx0, bx1);   // 体
   nesCache[i] = grid;
   return grid;
