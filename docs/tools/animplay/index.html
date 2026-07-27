@@ -231,7 +231,7 @@ function classifyPixel(r, g, b) {
   const hi = Math.max(r,g,b), lo = Math.min(r,g,b);
   if (b > r + 20 && b > 60) return 2;            // マフラー (青紫) → 色2
   if (lo > 170 && hi - lo < 45) return 3;        // 白 → 色3
-  if (r > 190 && g > 140 && b > 110) return 3;   // 肌 → 色3
+  if (r > 200 && g > 150 && b > 115) return 3;   // 肌 → 色3 (髪+市松の混色を弾くため厳しめ)
   return 1;                                      // 髪/輪郭/服/黒 → 色1 (茶)
 }
 function convertFrame(i) {
@@ -284,9 +284,10 @@ function convertFrame(i) {
     }
     return b > a ? [a, b + 1] : [x0, x1 + 1];
   };
-  const sample = (dy0, dy1, sy0, sy1, sx0, sx1, skinBoost) => {
+  const sample = (dy0, dy1, sy0, sy1, sx0, sx1, skinBoostFn) => {
     const dh = dy1 - dy0, dw = 16;
     for (let ty = 0; ty < dh; ty++) {
+      const skinBoost = skinBoostFn ? skinBoostFn(ty / dh) : 1.15;
       for (let tx = 0; tx < dw; tx++) {
         const ax = sx0 + Math.floor(tx * (sx1-sx0) / dw);
         const bx = Math.max(sx0 + Math.floor((tx+1) * (sx1-sx0) / dw), ax + 1);
@@ -303,7 +304,7 @@ function convertFrame(i) {
         }
         const solid = total - cnt[0];
         if (!total || solid < total * 0.32) continue;
-        const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*(skinBoost || 1.15)];
+        const w = [0, cnt[1], cnt[2]*1.15, cnt[3]*skinBoost];
         let best = 1; if (w[2] > w[best]) best = 2; if (w[3] > w[best]) best = 3;
         grid[dy0 + ty][tx] = best;
       }
@@ -312,7 +313,8 @@ function convertFrame(i) {
   const headEnd = y0 + Math.round((y1 - y0) * 0.28);
   const [hx0, hx1] = bandX(y0, headEnd);
   const [bx0, bx1] = bandX(headEnd, y1 + 1);
-  sample(0, 14, y0, headEnd, hx0, hx1, 1.6);   // 頭 (大きく、顔の肌を優遇)
+  // 頭: 上半分は髪なので肌を抑制、下半分 (顔) だけ肌を優遇
+  sample(0, 14, y0, headEnd, hx0, hx1, t => t < 0.45 ? 0.7 : 1.5);
   sample(14, 32, headEnd, y1 + 1, bx0, bx1);   // 体
   nesCache[i] = grid;
   return grid;
