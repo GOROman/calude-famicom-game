@@ -316,7 +316,7 @@ function convertFrame(i) {
   // 頭: 顔は左向きなので「下半分かつ左寄り」だけ肌を優遇、
   //     それ以外 (髪のてっぺん・後頭部/ポニーテール側) は肌を強く抑制
   sample(0, 14, y0, headEnd, hx0, hx1,
-         (t, u) => (t >= 0.45 && u < 0.62) ? 1.5 : 0.45);
+         (t, u) => (t >= 0.45 && u < 0.62) ? 1.5 : 0.15);
   sample(14, 32, headEnd, y1 + 1, bx0, bx1);   // 体
   nesCache[i] = grid;
   return grid;
