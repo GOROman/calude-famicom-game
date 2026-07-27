@@ -76,7 +76,8 @@
       <button class="btn sm" id="share">🔗 URLに保存</button>
     </div>
     <div id="status"></div>
-    <div class="note">元動画: grok 生成の少女狩人。先頭32コマから偶数コマだけ間引き、冒頭2コマを除いた 13 コマ (実質12fps相当, 368x800)。<br>
+    <div class="note"><b style="color:#ffd700">SPACE</b> 再生/停止 / <b style="color:#ffd700">←→</b> コマ送り / スプライトをクリックで x2 表示<br>
+      元動画: grok 生成の少女狩人。先頭32コマから偶数コマだけ間引き、冒頭2コマを除いた 13 コマ (実質12fps相当, 368x800)。<br>
       素材 PNG は <a href="frames/f007.png">frames/fNNN.png</a></div>
   </div>
 
@@ -392,6 +393,33 @@ $('copy-asm').onclick = async () => {
   await navigator.clipboard.writeText(txt);
   $('status').textContent = '.byte データをコピーしました';
 };
+
+// ---- キーボード: SPACE=再生/停止, ←→=コマ送り ----
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    playing ? stop() : start();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const l = frameList();
+    if (!l.length) return;
+    if (playing) stop();
+    pos = (pos + (e.key === 'ArrowRight' ? 1 : l.length - 1)) % l.length;
+    drawFrame(l[pos]);
+    drawNes(l[pos]);
+  }
+});
+
+// ---- スプライトクリックで x2 表示トグル ----
+let nesZoom = false;
+nesview.style.cursor = 'zoom-in';
+nesview.addEventListener('click', () => {
+  nesZoom = !nesZoom;
+  nesview.style.width = nesZoom ? '256px' : '128px';
+  nesview.style.height = nesZoom ? '512px' : '256px';
+  nesview.style.cursor = nesZoom ? 'zoom-out' : 'zoom-in';
+});
 
 loadHash();
 refresh();
